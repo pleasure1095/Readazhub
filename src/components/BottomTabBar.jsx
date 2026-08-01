@@ -1,0 +1,165 @@
+import { C } from "../styles/theme";
+
+// Small inline icon set — avoids adding an icon library dependency for
+// just a handful of simple glyphs. Each is a minimal 24x24 stroke icon.
+function IconHome({ active }) {
+  return (
+    <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke={active ? C.gold : C.dim} strokeWidth="2">
+      <path d="M3 11.5 12 4l9 7.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+function IconInvest({ active }) {
+  return (
+    <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke={active ? C.gold : C.dim} strokeWidth="2">
+      <path d="M3 3v18h18" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M7 15l4-4 3 3 5-6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+function IconWallet({ active }) {
+  return (
+    <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke={active ? C.gold : C.dim} strokeWidth="2">
+      <rect x="3" y="6" width="18" height="13" rx="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M16 12h2" strokeLinecap="round" />
+      <path d="M3 9h18" strokeLinecap="round" />
+    </svg>
+  );
+}
+function IconUsers({ active }) {
+  return (
+    <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke={active ? C.gold : C.dim} strokeWidth="2">
+      <circle cx="9" cy="8" r="3" />
+      <path d="M3 20v-1a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v1" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="17" cy="9" r="2.3" />
+      <path d="M21 20v-.7a4 4 0 0 0-3-3.9" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+function IconBell({ active }) {
+  return (
+    <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke={active ? C.gold : C.dim} strokeWidth="2">
+      <path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M13.7 21a2 2 0 0 1-3.4 0" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+function IconSettings({ active }) {
+  return (
+    <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke={active ? C.gold : C.dim} strokeWidth="2">
+      <circle cx="12" cy="12" r="3" />
+      <path
+        d="M19.4 13a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V19a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H4a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H10a1.7 1.7 0 0 0 1-1.5V4a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V10a1.7 1.7 0 0 0 1.5 1H20a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+// Full 5-item nav for regular users, matching the reference design's
+// Home/Invest/Portfolio/Network/Account style bottom bar.
+const USER_ITEMS = [
+  { key: "dashboard", label: "Home", Icon: IconHome },
+  { key: "plans", label: "Plans", Icon: IconInvest },
+  { key: "referrals", label: "Referrals", Icon: IconUsers },
+  { key: "notifications", label: "Alerts", Icon: IconBell },
+  { key: "settings", label: "Settings", Icon: IconSettings },
+];
+
+const ADMIN_ITEMS = [
+  { key: "deposits", label: "Deposits", Icon: IconWallet },
+  { key: "earnings", label: "Earnings", Icon: IconInvest },
+  { key: "users", label: "Users", Icon: IconUsers },
+];
+
+/**
+ * Primary bottom navigation bar, always visible (not just a mobile
+ * fallback) — this is now the main way to move between sections, per the
+ * requested app-style navigation. The old top Nav tabs were removed from
+ * daily use in favor of this bar; Nav.jsx now only renders the logo/
+ * greeting/sign-out row, no duplicate tab buttons.
+ */
+export default function BottomTabBar({ tab, setTab, isAdmin, unreadCount = 0 }) {
+  const items = isAdmin ? ADMIN_ITEMS : USER_ITEMS;
+
+  return (
+    <nav
+      style={{
+        position: "fixed",
+        bottom: 0,
+        left: 0,
+        right: 0,
+        display: "flex",
+        justifyContent: "space-around",
+        alignItems: "center",
+        padding: "10px 4px calc(10px + env(safe-area-inset-bottom))",
+        background: `linear-gradient(180deg, ${C.charcoal}F5, ${C.charcoalDeep}FA)`,
+        backdropFilter: "blur(20px)",
+        borderTop: `1px solid ${C.border}`,
+        zIndex: 60,
+      }}
+    >
+      {items.map(({ key, label, Icon }) => {
+        const active = tab === key;
+        const showBadge = key === "notifications" && unreadCount > 0;
+        return (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            style={{
+              position: "relative",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 3,
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              padding: "4px 10px",
+              minWidth: 52,
+            }}
+          >
+            <div style={{ position: "relative" }}>
+              <Icon active={active} />
+              {showBadge && (
+                <span
+                  style={{
+                    position: "absolute",
+                    top: -4,
+                    right: -6,
+                    background: C.red,
+                    color: "#fff",
+                    borderRadius: "50%",
+                    minWidth: 15,
+                    height: 15,
+                    fontSize: 9,
+                    fontWeight: 800,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "0 3px",
+                    border: `1.5px solid ${C.charcoalDeep}`,
+                  }}
+                >
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
+            </div>
+            <span
+              style={{
+                fontSize: 10,
+                color: active ? C.gold : C.dim,
+                fontWeight: active ? 800 : 600,
+                letterSpacing: "0.02em",
+              }}
+            >
+              {label}
+            </span>
+          </button>
+        );
+      })}
+    </nav>
+  );
+}

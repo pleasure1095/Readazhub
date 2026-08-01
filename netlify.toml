@@ -1,0 +1,12 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# Single-page app: any route not matching a real file falls back to
+# index.html so client-side tab state (and any future routing) works
+# on direct page loads/refreshes, same purpose as the rewrite rule
+# in firebase.json.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

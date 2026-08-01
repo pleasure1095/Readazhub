@@ -1,0 +1,114 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+html {
+  /* Prevents mobile browsers from auto-shrinking text to "fit" content,
+     a common cause of pages appearing tiny and requiring pinch-zoom. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+body {
+  background: #241C20;
+  font-family: system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  font-size: 15px;
+  line-height: 1.5;
+}
+input, select, textarea, button {
+  font-family: inherit;
+}
+button {
+  min-height: 44px; /* Apple/Google's recommended minimum touch target size */
+}
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); }
+::-webkit-scrollbar-thumb { background: rgba(212,65,92,0.5); border-radius: 3px; }
+
+button:disabled {
+  cursor: not-allowed !important;
+  opacity: 0.55;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fade { animation: fadeIn 0.3s ease; }
+
+/* Responsive grid used by Dashboard stat cards. VIP plans now use a
+   horizontal-scroll flex layout (see VipPlansPage.jsx) instead of a grid,
+   so no .plan-grid class is needed anymore. */
+/* "Major" balance cards (Total Earnings, Withdrawable Profit, Welcome
+   Bonus, Referral Bonus) — always 2 columns so they stay balanced side by
+   side, never collapsing to a single stacked column regardless of screen
+   width, per the site owner's request that these lead figures always
+   have visual weight. */
+.major-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+/* Auto-scrolling stat row: all 8 dashboard stats flow horizontally and
+   loop continuously on their own, no swipe/drag required. The track is
+   the full stat list duplicated once (see DashboardPage.jsx) and
+   animated from 0 to -50% so it loops seamlessly; hovering/touching
+   pauses it so a user reading a specific number isn't fighting the
+   motion. prefers-reduced-motion users get a static, swipeable row
+   instead, since continuous motion can be genuinely uncomfortable for
+   that group — accessibility takes priority over the animation here. */
+.stat-scroll-viewport {
+  overflow: hidden;
+  width: 100%;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 24px, #000 calc(100% - 24px), transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 24px, #000 calc(100% - 24px), transparent);
+}
+.stat-scroll-track {
+  display: flex;
+  gap: 12px;
+  width: max-content;
+  animation: statScroll 28s linear infinite;
+}
+.stat-scroll-viewport:hover .stat-scroll-track,
+.stat-scroll-viewport:active .stat-scroll-track {
+  animation-play-state: paused;
+}
+.stat-scroll-track.stat-scroll-paused {
+  animation-play-state: paused;
+}
+.stat-scroll-card {
+  flex: 0 0 auto;
+  min-width: 132px;
+  background: linear-gradient(160deg, rgba(212,65,92,0.22), rgba(36,28,32,0.6));
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+@keyframes statScroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stat-scroll-track {
+    animation: none;
+    overflow-x: auto;
+  }
+}
+
+.admin-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+.admin-search-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+@media (max-width: 600px) {
+  .admin-search-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 480px) {
+  .admin-grid { grid-template-columns: 1fr; }
+}

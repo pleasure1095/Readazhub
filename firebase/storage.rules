@@ -1,0 +1,21 @@
+rules_version = '2';
+
+// STAGE 3 — deposit screenshot uploads enabled.
+service firebase.storage {
+  match /b/{bucket}/o {
+    // A signed-in user may upload a screenshot only into their own folder,
+    // and only image files under 5MB. Reads are allowed for any signed-in
+    // user since the admin queue needs to view other users' screenshots.
+    match /deposit-screenshots/{userId}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null &&
+        request.auth.uid == userId &&
+        request.resource.size < 5 * 1024 * 1024 &&
+        request.resource.contentType.matches("image/.*");
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

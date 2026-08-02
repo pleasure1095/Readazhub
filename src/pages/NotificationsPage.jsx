@@ -48,7 +48,7 @@ export default function NotificationsPage() {
             <div key={n.id} style={{ ...cardStyle, padding: 16, display: "flex", gap: 12, alignItems: "flex-start" }}>
               <div style={{ fontSize: 20 }}>{iconFor(n.type)}</div>
               <div>
-                <div style={{ fontSize: 13, color: "#F9F1E7" }}>{n.msg}</div>
+                <div style={{ fontSize: 13, color: C.text }}>{n.msg}</div>
                 <div style={{ fontSize: 11, color: C.dim, marginTop: 4 }}>{fmtDate(n.ts)}</div>
               </div>
             </div>

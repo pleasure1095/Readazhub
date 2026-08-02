@@ -195,7 +195,7 @@ export default function AdminDepositsPage() {
                 <div key={req.id} style={{ ...cardStyle, border: "1px solid rgba(123,158,217,0.3)", padding: 14 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
                     <div style={{ fontSize: 13 }}>
-                      <strong style={{ color: "#F9F1E7" }}>{req.userName}</strong> — ₦{(req.amount || 0).toLocaleString()}
+                      <strong style={{ color: C.text }}>{req.userName}</strong> — ₦{(req.amount || 0).toLocaleString()}
                     </div>
                     <span
                       style={{
@@ -261,7 +261,7 @@ export default function AdminDepositsPage() {
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
                   <div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
-                      <span style={{ fontSize: 15, color: "#F9F1E7", fontWeight: 500 }}>{dep.userName}</span>
+                      <span style={{ fontSize: 15, color: C.text, fontWeight: 500 }}>{dep.userName}</span>
                       <span style={chipStyle(sc)}>{dep.status.toUpperCase()}</span>
                     </div>
                     <div style={{ fontSize: 12, color: C.muted }}>{dep.userEmail}</div>
@@ -273,7 +273,7 @@ export default function AdminDepositsPage() {
                   </div>
                 </div>
 
-                <div style={{ marginTop: 14, padding: 12, background: "rgba(255,255,255,0.025)", borderRadius: 10, border: `1px solid ${C.border}` }}>
+                <div style={{ marginTop: 14, padding: 12, background: "rgba(36,28,32,0.03)", borderRadius: 10, border: `1px solid ${C.border}` }}>
                   <div style={{ fontSize: 10, color: C.dim, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Payment Details</div>
                   <div style={{ fontSize: 12 }}>
                     <span style={{ color: C.dim }}>Ref: </span>
@@ -281,7 +281,7 @@ export default function AdminDepositsPage() {
                   </div>
                   <div style={{ fontSize: 12, marginTop: 4 }}>
                     <span style={{ color: C.dim }}>Sender: </span>
-                    <span style={{ color: "#F9F1E7" }}>{dep.senderName}</span>
+                    <span style={{ color: C.text }}>{dep.senderName}</span>
                   </div>
                   {dep.narrationCode && (
                     <div style={{ fontSize: 12, marginTop: 4 }}>
@@ -293,7 +293,7 @@ export default function AdminDepositsPage() {
                   {dep.amountPaid != null && (
                     <div style={{ fontSize: 12, marginTop: 4 }}>
                       <span style={{ color: C.dim }}>Amount Paid (reported): </span>
-                      <span style={{ color: dep.amountPaid === dep.amount ? "#F9F1E7" : C.red, fontWeight: dep.amountPaid === dep.amount ? 400 : 700 }}>
+                      <span style={{ color: dep.amountPaid === dep.amount ? C.text : C.red, fontWeight: dep.amountPaid === dep.amount ? 400 : 700 }}>
                         ₦{(dep.amountPaid || 0).toLocaleString()}
                       </span>
                       {dep.amountPaid !== dep.amount && (

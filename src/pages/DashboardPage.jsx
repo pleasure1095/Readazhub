@@ -193,7 +193,7 @@ export default function DashboardPage() {
           fontSize: 18,
           fontWeight: 800,
           marginBottom: 18,
-          color: "#F9F1E7",
+          color: C.text,
           display: "inline-flex",
           alignItems: "center",
           gap: 8,
@@ -359,7 +359,7 @@ export default function DashboardPage() {
       <PlanCarousel />
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18, flexWrap: "wrap", gap: 10 }}>
-        <h3 style={{ fontSize: 16, fontWeight: 800, color: "#F9F1E7" }}>My VIP Plans</h3>
+        <h3 style={{ fontSize: 16, fontWeight: 800, color: C.text }}>My VIP Plans</h3>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {investments.length > 0 && (
             <button style={{ ...buttonStyle("ghost"), padding: "9px 18px", fontSize: 13 }} onClick={openMigrate}>

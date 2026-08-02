@@ -135,7 +135,7 @@ export default function ManageUsersPage() {
             >
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
-                  <span style={{ fontSize: 14, color: "#F9F1E7", fontWeight: 500 }}>{u.name}</span>
+                  <span style={{ fontSize: 14, color: C.text, fontWeight: 500 }}>{u.name}</span>
                   <span style={chipStyle(u.role === "admin" ? C.red : C.green)}>
                     {u.role === "admin" ? "ADMIN" : "USER"}
                   </span>

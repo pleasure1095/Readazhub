@@ -240,7 +240,7 @@ export default function AdminEarningsPage() {
               <div key={req.id} style={{ ...cardStyle, border: `1px solid ${C.emerald}40`, padding: 14 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 10 }}>
                   <div>
-                    <div style={{ fontSize: 14, color: "#F9F1E7", fontWeight: 700 }}>{req.userName}</div>
+                    <div style={{ fontSize: 14, color: C.text, fontWeight: 700 }}>{req.userName}</div>
                     <div style={{ fontSize: 11, color: C.dim, marginTop: 2 }}>
                       {req.bankDetails?.bank} · {req.bankDetails?.accNo} · {req.bankDetails?.accName}
                     </div>
@@ -298,7 +298,7 @@ export default function AdminEarningsPage() {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
                 <div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
-                    <span style={{ fontSize: 15, color: "#F9F1E7", fontWeight: 600 }}>{inv.userName}</span>
+                    <span style={{ fontSize: 15, color: C.text, fontWeight: 600 }}>{inv.userName}</span>
                     <span style={chipStyle(C.emerald)}>{inv.planLabel}</span>
                     {inv.stillInGracePeriod && <span style={chipStyle(C.dim)}>GRACE PERIOD</span>}
                   </div>
@@ -313,26 +313,26 @@ export default function AdminEarningsPage() {
                 </div>
               </div>
 
-              <div style={{ marginTop: 14, padding: 12, background: "rgba(255,255,255,0.025)", borderRadius: 10, border: `1px solid ${C.border}`, display: "flex", flexWrap: "wrap", gap: 16 }}>
+              <div style={{ marginTop: 14, padding: 12, background: "rgba(36,28,32,0.03)", borderRadius: 10, border: `1px solid ${C.border}`, display: "flex", flexWrap: "wrap", gap: 16 }}>
                 <div>
                   <div style={{ fontSize: 10, color: C.dim, textTransform: "uppercase", letterSpacing: "0.06em" }}>Daily Rate</div>
-                  <div style={{ fontSize: 13, color: "#F9F1E7", fontWeight: 600 }}>₦{fmt(inv.planDaily)}/day</div>
+                  <div style={{ fontSize: 13, color: C.text, fontWeight: 600 }}>₦{fmt(inv.planDaily)}/day</div>
                 </div>
                 <div>
                   <div style={{ fontSize: 10, color: C.dim, textTransform: "uppercase", letterSpacing: "0.06em" }}>Days Elapsed</div>
-                  <div style={{ fontSize: 13, color: "#F9F1E7", fontWeight: 600 }}>{inv.daysEarning}</div>
+                  <div style={{ fontSize: 13, color: C.text, fontWeight: 600 }}>{inv.daysEarning}</div>
                 </div>
                 <div>
                   <div style={{ fontSize: 10, color: C.dim, textTransform: "uppercase", letterSpacing: "0.06em" }}>Days Read</div>
-                  <div style={{ fontSize: 13, color: "#F9F1E7", fontWeight: 600 }}>{inv.reviewedDayCount} / {inv.daysEarning}</div>
+                  <div style={{ fontSize: 13, color: C.text, fontWeight: 600 }}>{inv.reviewedDayCount} / {inv.daysEarning}</div>
                 </div>
                 <div>
                   <div style={{ fontSize: 10, color: C.dim, textTransform: "uppercase", letterSpacing: "0.06em" }}>Missed (unread)</div>
-                  <div style={{ fontSize: 13, color: inv.missedEarnings > 0 ? C.red : "#F9F1E7", fontWeight: 600 }}>₦{fmt(inv.missedEarnings)}</div>
+                  <div style={{ fontSize: 13, color: inv.missedEarnings > 0 ? C.red : C.text, fontWeight: 600 }}>₦{fmt(inv.missedEarnings)}</div>
                 </div>
                 <div>
                   <div style={{ fontSize: 10, color: C.dim, textTransform: "uppercase", letterSpacing: "0.06em" }}>Lifetime Withdrawn</div>
-                  <div style={{ fontSize: 13, color: "#F9F1E7", fontWeight: 600 }}>₦{fmt(inv.lifetimeWithdrawn || 0)}</div>
+                  <div style={{ fontSize: 13, color: C.text, fontWeight: 600 }}>₦{fmt(inv.lifetimeWithdrawn || 0)}</div>
                 </div>
               </div>
             </div>

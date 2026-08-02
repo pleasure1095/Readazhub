@@ -60,7 +60,7 @@ export default function ReferralsPage() {
           <div style={{ fontSize: 10, letterSpacing: "0.1em", color: C.dim, textTransform: "uppercase", marginBottom: 6 }}>
             Level 1 · {Math.round(REFERRAL_LEVEL_1_PCT * 100)}%
           </div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "#F9F1E7" }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>
             {loading ? "…" : `₦${network.level1Total.toLocaleString()}`}
           </div>
           <div style={{ fontSize: 10.5, color: C.dim, marginTop: 4 }}>
@@ -71,7 +71,7 @@ export default function ReferralsPage() {
           <div style={{ fontSize: 10, letterSpacing: "0.1em", color: C.dim, textTransform: "uppercase", marginBottom: 6 }}>
             Level 2 · {Math.round(REFERRAL_LEVEL_2_PCT * 100)}%
           </div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "#F9F1E7" }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>
             {loading ? "…" : `₦${network.level2Total.toLocaleString()}`}
           </div>
           <div style={{ fontSize: 10.5, color: C.dim, marginTop: 4 }}>
@@ -90,7 +90,7 @@ export default function ReferralsPage() {
               style={{
                 flex: 1,
                 minWidth: 200,
-                background: "rgba(255,255,255,0.04)",
+                background: "rgba(36,28,32,0.04)",
                 border: `1px solid ${C.border}`,
                 borderRadius: 8,
                 padding: "10px 12px",
@@ -116,7 +116,7 @@ export default function ReferralsPage() {
               style={{
                 flex: 1,
                 minWidth: 200,
-                background: "rgba(255,255,255,0.04)",
+                background: "rgba(36,28,32,0.04)",
                 border: `1px solid ${C.border}`,
                 borderRadius: 8,
                 padding: "10px 12px",
@@ -136,9 +136,9 @@ export default function ReferralsPage() {
       </div>
 
       <div style={{ ...cardStyle, fontSize: 12, color: C.muted, lineHeight: 1.7 }}>
-        Share your link or code with friends. You earn <strong style={{ color: "#F9F1E7" }}>{Math.round(REFERRAL_LEVEL_1_PCT * 100)}%</strong> of
+        Share your link or code with friends. You earn <strong style={{ color: C.text }}>{Math.round(REFERRAL_LEVEL_1_PCT * 100)}%</strong> of
         the daily earnings of everyone you refer directly (Level 1), and{" "}
-        <strong style={{ color: "#F9F1E7" }}>{Math.round(REFERRAL_LEVEL_2_PCT * 100)}%</strong> of the daily earnings of everyone THEY refer
+        <strong style={{ color: C.text }}>{Math.round(REFERRAL_LEVEL_2_PCT * 100)}%</strong> of the daily earnings of everyone THEY refer
         (Level 2) — for as long as their investments keep earning. Your
         bonus follows their actual earnings exactly: if they miss a day's
         review and earn ₦0 that day, your bonus for that day is ₦0 too.

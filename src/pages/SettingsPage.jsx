@@ -199,10 +199,10 @@ export default function SettingsPage() {
             style={{
               width: "100%",
               padding: "12px 14px",
-              background: "#111A14",
-              border: "1px solid rgba(255,255,255,0.1)",
+              background: "#FFFFFF",
+              border: "1px solid rgba(36,28,32,0.14)",
               borderRadius: 8,
-              color: "#F9F1E7",
+              color: C.text,
               fontSize: 14,
             }}
           >
@@ -307,7 +307,7 @@ export default function SettingsPage() {
           }}
         >
           <span style={{ fontSize: 13, color: C.muted }}>App Version</span>
-          <span style={{ fontSize: 13, color: "#F9F1E7" }}>{APP_VERSION}</span>
+          <span style={{ fontSize: 13, color: C.text }}>{APP_VERSION}</span>
         </div>
         <a
           href={WHATSAPP_GROUP_LINK}

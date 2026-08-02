@@ -18,7 +18,7 @@ export default function VipPlansPage({ onJoined }) {
 
   return (
     <div>
-      <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 6, color: "#F9F1E7" }}>VIP Plans</h2>
+      <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 6, color: C.text }}>VIP Plans</h2>
       <p style={{ fontSize: 13, color: C.muted, marginBottom: 20, fontWeight: 500 }}>
         Earnings begin 24 hours after admin approval. Only profit is ever withdrawable — capital
         stays invested.

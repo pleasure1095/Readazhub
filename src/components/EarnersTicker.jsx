@@ -62,7 +62,7 @@ export default function EarnersTicker() {
     >
       <span style={{ fontSize: 15 }}>💸</span>
       <div key={visibleIndex} style={{ fontSize: 12.5, color: C.muted, animation: "tickerFade 0.4s ease" }}>
-        <strong style={{ color: "#F9F1E7" }}>{entry.phone}</strong> just withdrew{" "}
+        <strong style={{ color: C.text }}>{entry.phone}</strong> just withdrew{" "}
         <strong style={{ color: C.emerald }}>₦{entry.amount.toLocaleString()}</strong>
       </div>
       <style>{`

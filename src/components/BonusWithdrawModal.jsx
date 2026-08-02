@@ -110,7 +110,7 @@ export default function BonusWithdrawModal({ userId, availableBalance, onClose, 
         </div>
         <div style={{ display: "flex", justifyContent: "space-between" }}>
           <span style={{ color: C.dim }}>Minimum Withdrawal</span>
-          <span style={{ color: "#F9F1E7" }}>₦{MIN_WITHDRAWAL.toLocaleString()}</span>
+          <span style={{ color: C.text }}>₦{MIN_WITHDRAWAL.toLocaleString()}</span>
         </div>
       </div>
 
@@ -134,10 +134,10 @@ export default function BonusWithdrawModal({ userId, availableBalance, onClose, 
           style={{
             width: "100%",
             padding: "12px 14px",
-            background: "#111A14",
-            border: "1px solid rgba(255,255,255,0.1)",
+            background: "#FFFFFF",
+            border: "1px solid rgba(36,28,32,0.14)",
             borderRadius: 8,
-            color: "#F9F1E7",
+            color: C.text,
             fontSize: 14,
           }}
         >

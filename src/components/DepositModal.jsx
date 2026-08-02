@@ -175,7 +175,7 @@ export default function DepositModal({ user, onClose, onDone, initialPlanId }) {
                 height: 3,
                 borderRadius: 2,
                 marginBottom: 5,
-                background: step >= i + 1 ? C.emerald : "rgba(255,255,255,0.1)",
+                background: step >= i + 1 ? C.emerald : "rgba(36,28,32,0.14)",
               }}
             />
             <div style={{ fontSize: 9, color: step === i + 1 ? C.emerald : C.dim, letterSpacing: "0.06em", textTransform: "uppercase" }}>
@@ -196,8 +196,8 @@ export default function DepositModal({ user, onClose, onDone, initialPlanId }) {
                 key={p.id}
                 onClick={() => setPlanId(p.id)}
                 style={{
-                  background: planId === p.id ? `${p.color}14` : "rgba(255,255,255,0.02)",
-                  border: `1px solid ${planId === p.id ? p.color : "rgba(255,255,255,0.08)"}`,
+                  background: planId === p.id ? `${p.color}14` : "rgba(36,28,32,0.025)",
+                  border: `1px solid ${planId === p.id ? p.color : "rgba(36,28,32,0.1)"}`,
                   borderRadius: 12,
                   padding: 14,
                   cursor: "pointer",
@@ -247,7 +247,7 @@ export default function DepositModal({ user, onClose, onDone, initialPlanId }) {
             <CopyRow label="Bank" value={OPAY_DETAILS.bank} />
             <CopyRow label="Account Number" value={OPAY_DETAILS.accountNumber} />
             <CopyRow label="Account Name" value={OPAY_DETAILS.accountName} />
-            <div style={{ borderTop: "1px solid rgba(255,255,255,0.07)", marginTop: 12, paddingTop: 12 }}>
+            <div style={{ borderTop: "1px solid rgba(36,28,32,0.09)", marginTop: 12, paddingTop: 12 }}>
               <CopyRow label="Amount to Send" value={`₦${plan.amount.toLocaleString()}`} accent={C.green} big />
             </div>
           </div>
@@ -290,7 +290,7 @@ export default function DepositModal({ user, onClose, onDone, initialPlanId }) {
           </p>
           <div
             style={{
-              background: "rgba(255,255,255,0.02)",
+              background: "rgba(36,28,32,0.025)",
               border: `1px solid ${C.border}`,
               borderRadius: 10,
               padding: 14,

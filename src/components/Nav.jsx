@@ -14,8 +14,8 @@ export default function Nav({ user, onLogout }) {
         alignItems: "center",
         justifyContent: "space-between",
         padding: "16px 20px",
-        borderBottom: `1px solid ${C.border}`,
-        background: `${C.charcoalDeep}EB`,
+        borderBottom: "1px solid rgba(249,241,231,0.14)",
+        background: `${C.navDarkDeep}EB`,
         backdropFilter: "blur(20px)",
         position: "sticky",
         top: 0,
@@ -25,8 +25,17 @@ export default function Nav({ user, onLogout }) {
     >
       <Logo size={26} />
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <span style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>Hi, {user?.name?.split(" ")[0]}</span>
-        <button style={{ ...buttonStyle("ghost"), padding: "7px 12px", fontSize: 12 }} onClick={onLogout}>
+        <span style={{ fontSize: 12, color: C.navMuted, fontWeight: 600 }}>Hi, {user?.name?.split(" ")[0]}</span>
+        <button
+          style={{
+            ...buttonStyle("ghost"),
+            padding: "7px 12px",
+            fontSize: 12,
+            color: C.navText,
+            borderColor: "rgba(249,241,231,0.28)",
+          }}
+          onClick={onLogout}
+        >
           Sign out
         </button>
       </div>

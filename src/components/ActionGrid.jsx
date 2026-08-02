@@ -64,13 +64,13 @@ export default function ActionGrid({ onDeposit, onMigrate, onWithdraw, onSupport
               justifyContent: "center",
               fontSize: 20,
               fontWeight: 800,
-              color: C.charcoalDeep,
+              color: "#241C20",
               flexShrink: 0,
             }}
           >
             {a.icon}
           </div>
-          <span style={{ fontSize: 10.5, fontWeight: 700, color: "#F9F1E7" }}>{a.label}</span>
+          <span style={{ fontSize: 10.5, fontWeight: 700, color: C.text }}>{a.label}</span>
         </button>
       ))}
     </div>

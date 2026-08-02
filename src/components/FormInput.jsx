@@ -14,7 +14,7 @@ export default function FormInput({ style, ...rest }) {
       style={{
         ...inputStyle,
         ...style,
-        borderColor: focused ? "#2ECC7180" : "rgba(255,255,255,0.1)",
+        borderColor: focused ? "#2ECC7180" : "rgba(36,28,32,0.14)",
       }}
       onFocus={() => setFocused(true)}
       onBlur={() => setFocused(false)}

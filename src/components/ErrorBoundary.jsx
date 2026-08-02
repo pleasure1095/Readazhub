@@ -56,7 +56,7 @@ export default class ErrorBoundary extends Component {
                 lineHeight: 1.6,
                 fontFamily: "monospace",
                 wordBreak: "break-word",
-                background: "rgba(255,255,255,0.03)",
+                background: "rgba(36,28,32,0.035)",
                 padding: 12,
                 borderRadius: 8,
               }}

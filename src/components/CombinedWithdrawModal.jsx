@@ -149,30 +149,30 @@ export default function CombinedWithdrawModal({
         {breakdown.vipProfit > 0 && (
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4, fontSize: 11.5 }}>
             <span style={{ color: C.dim }}>VIP Profit</span>
-            <span style={{ color: "#F9F1E7" }}>₦{breakdown.vipProfit.toLocaleString()}</span>
+            <span style={{ color: C.text }}>₦{breakdown.vipProfit.toLocaleString()}</span>
           </div>
         )}
         {breakdown.referral > 0 && (
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4, fontSize: 11.5 }}>
             <span style={{ color: C.dim }}>Referral Bonus</span>
-            <span style={{ color: "#F9F1E7" }}>₦{breakdown.referral.toLocaleString()}</span>
+            <span style={{ color: C.text }}>₦{breakdown.referral.toLocaleString()}</span>
           </div>
         )}
         {breakdown.welcome > 0 && (
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4, fontSize: 11.5 }}>
             <span style={{ color: C.dim }}>Welcome Bonus</span>
-            <span style={{ color: "#F9F1E7" }}>₦{breakdown.welcome.toLocaleString()}</span>
+            <span style={{ color: C.text }}>₦{breakdown.welcome.toLocaleString()}</span>
           </div>
         )}
         {breakdown.checkIn > 0 && (
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4, fontSize: 11.5 }}>
             <span style={{ color: C.dim }}>Check-In Balance</span>
-            <span style={{ color: "#F9F1E7" }}>₦{breakdown.checkIn.toLocaleString()}</span>
+            <span style={{ color: C.text }}>₦{breakdown.checkIn.toLocaleString()}</span>
           </div>
         )}
         <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8, paddingTop: 8, borderTop: `1px solid ${C.emerald}20` }}>
           <span style={{ color: C.dim }}>Minimum Withdrawal</span>
-          <span style={{ color: "#F9F1E7" }}>₦{MIN_WITHDRAWAL.toLocaleString()}</span>
+          <span style={{ color: C.text }}>₦{MIN_WITHDRAWAL.toLocaleString()}</span>
         </div>
       </div>
 
@@ -201,10 +201,10 @@ export default function CombinedWithdrawModal({
           style={{
             width: "100%",
             padding: "12px 14px",
-            background: "#111A14",
-            border: "1px solid rgba(255,255,255,0.1)",
+            background: "#FFFFFF",
+            border: "1px solid rgba(36,28,32,0.14)",
             borderRadius: 8,
-            color: "#F9F1E7",
+            color: C.text,
             fontSize: 14,
           }}
         >

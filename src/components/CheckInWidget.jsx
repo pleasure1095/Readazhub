@@ -63,7 +63,7 @@ export default function CheckInWidget({ userId, isVipMember }) {
     return (
       <div
         style={{
-          background: "rgba(255,255,255,0.03)",
+          background: "rgba(36,28,32,0.035)",
           border: `1px dashed ${C.border}`,
           borderRadius: 16,
           padding: "16px 18px",
@@ -97,7 +97,7 @@ export default function CheckInWidget({ userId, isVipMember }) {
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
             <span style={{ fontSize: 20 }}>🔥</span>
-            <span style={{ fontSize: 18, fontWeight: 800, color: "#F9F1E7" }}>
+            <span style={{ fontSize: 18, fontWeight: 800, color: C.text }}>
               {status.currentStreak}-day streak
             </span>
           </div>

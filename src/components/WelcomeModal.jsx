@@ -102,12 +102,12 @@ export default function WelcomeModal({ userId, userName }) {
                 justifyContent: "space-between",
                 alignItems: "center",
                 padding: "8px 12px",
-                background: "rgba(255,255,255,0.03)",
+                background: "rgba(36,28,32,0.035)",
                 border: `1px solid ${plan.color}28`,
                 borderRadius: 10,
               }}
             >
-              <span style={{ fontSize: 12, fontWeight: 700, color: "#F9F1E7" }}>{plan.label}</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: C.text }}>{plan.label}</span>
               <span style={{ fontSize: 11, color: C.muted, textAlign: "right" }}>
                 ₦{plan.amount.toLocaleString()} → <strong style={{ color: plan.color }}>₦{plan.daily.toLocaleString()}/day</strong>
               </span>

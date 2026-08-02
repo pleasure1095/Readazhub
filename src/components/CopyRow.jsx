@@ -19,7 +19,7 @@ export default function CopyRow({ label, value, accent, big }) {
           style={{
             fontSize: big ? 17 : 13,
             fontWeight: big ? 700 : 400,
-            color: accent || "#F9F1E7",
+            color: accent || C.text,
             letterSpacing: big ? "0.06em" : 0,
           }}
         >
@@ -29,7 +29,7 @@ export default function CopyRow({ label, value, accent, big }) {
           onClick={copy}
           style={{
             background: "none",
-            border: `1px solid ${copied ? C.green : "rgba(255,255,255,0.1)"}`,
+            border: `1px solid ${copied ? C.green : "rgba(36,28,32,0.14)"}`,
             borderRadius: 6,
             cursor: "pointer",
             color: copied ? C.green : C.dim,

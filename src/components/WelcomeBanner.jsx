@@ -40,7 +40,7 @@ export default function WelcomeBanner() {
           padding: "8px 16px",
           borderRadius: 9,
           background: "linear-gradient(135deg,#D4506A,#8C1E2E)",
-          color: "#F9F1E7",
+          color: C.text,
           fontSize: 12.5,
           fontWeight: 700,
           textDecoration: "none",

@@ -43,7 +43,7 @@ export default function ActivityFeed({ events, limit = 20 }) {
   return (
     <div style={{ marginBottom: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-        <h3 style={{ fontSize: 15, fontWeight: 800, color: "#F9F1E7" }}>Recent Activity</h3>
+        <h3 style={{ fontSize: 15, fontWeight: 800, color: C.text }}>Recent Activity</h3>
         {hasMore && (
           <button
             onClick={() => setExpanded((e) => !e)}
@@ -92,7 +92,7 @@ export default function ActivityFeed({ events, limit = 20 }) {
             >
               <div style={{ fontSize: 18 }}>{iconFor(e.type)}</div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 12.5, color: "#F9F1E7", fontWeight: 600, lineHeight: 1.4 }}>{e.title}</div>
+                <div style={{ fontSize: 12.5, color: C.text, fontWeight: 600, lineHeight: 1.4 }}>{e.title}</div>
                 <div style={{ fontSize: 10.5, color: C.dim, marginTop: 2 }}>{fmtDate(e.ts)}</div>
               </div>
               {e.amount && (

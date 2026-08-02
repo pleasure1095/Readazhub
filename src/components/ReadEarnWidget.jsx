@@ -114,7 +114,7 @@ export default function ReadEarnWidget({ userId, isVipMember, onEarningsUnlocked
     >
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
         <span style={{ fontSize: 18 }}>📖</span>
-        <span style={{ fontSize: 15, fontWeight: 800, color: "#F9F1E7" }}>Read & Earn</span>
+        <span style={{ fontSize: 15, fontWeight: 800, color: C.text }}>Read & Earn</span>
       </div>
       <div style={{ fontSize: 12, color: C.muted, fontWeight: 600, marginBottom: 14 }}>
         {cooldownActive
@@ -137,7 +137,7 @@ export default function ReadEarnWidget({ userId, isVipMember, onEarningsUnlocked
                 flexDirection: "column",
                 gap: 10,
                 padding: 12,
-                background: "rgba(255,255,255,0.03)",
+                background: "rgba(36,28,32,0.035)",
                 borderRadius: 12,
                 opacity: cooldownActive ? 0.6 : 1,
               }}
@@ -155,7 +155,7 @@ export default function ReadEarnWidget({ userId, isVipMember, onEarningsUnlocked
                     height: 44,
                     borderRadius: 10,
                     flexShrink: 0,
-                    background: "rgba(255,255,255,0.05)",
+                    background: "rgba(36,28,32,0.05)",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -166,7 +166,7 @@ export default function ReadEarnWidget({ userId, isVipMember, onEarningsUnlocked
                 </div>
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "#F9F1E7" }}>{a.title}</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{a.title}</div>
                     {isRead && <span style={{ fontSize: 15, color: C.green, flexShrink: 0 }}>✓</span>}
                   </div>
                   <div style={{ fontSize: 10, color: C.dim, marginBottom: 4 }}>

@@ -81,7 +81,7 @@ export default function App() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, color: "#F9F1E7" }}>
+    <div style={{ minHeight: "100vh", background: C.bg, color: C.text }}>
       <Nav user={user} onLogout={logout} />
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "24px 16px", paddingBottom: 100 }}>
         {renderTab()}

@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { C, buttonStyle, cardStyle } from "../styles/theme";
 import { getAllDeposits } from "../services/deposits";
-import { getReviewStatus, countReviewedEarningDays, hasEarnedToday } from "../services/reviews";
+import { getReviewStatus, countReviewedEarningDays } from "../services/reviews";
 import { calculateInvestmentEarnings, getDaysEarning } from "../utils/earnings";
-import { getAllWithdrawalRequests } from "../services/withdrawalRequests";
+import { getAllWithdrawalRequests, markCombinedWithdrawalPaid, rejectCombinedWithdrawal } from "../services/withdrawalRequests";
 import FormInput from "../components/FormInput";
 
 function fmt(n) {
@@ -31,7 +31,9 @@ function chipStyle(color) {
  * Admin-facing earnings overview — one row per approved VIP investment,
  * showing exactly what the investor sees on their own dashboard: days
  * elapsed, days actually reviewed, available balance, and lifetime
- * withdrawn.
+ * withdrawn. Also surfaces pending combined withdrawal requests directly
+ * on this page (not just a count) so an admin can act on them without
+ * switching to the Deposits tab, and pay/reject right here.
  *
  * Deliberately reuses calculateInvestmentEarnings() and
  * countReviewedEarningDays() — the same functions DashboardPage.jsx
@@ -49,10 +51,12 @@ export default function AdminEarningsPage() {
   const [investments, setInvestments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
+  const [ok, setOk] = useState("");
   const [searchName, setSearchName] = useState("");
-  const [filter, setFilter] = useState("all"); // all | grace | pending_withdrawal | has_balance
+  const [filter, setFilter] = useState("all"); // all | has_balance | pending_withdrawal | grace
   const [readStats, setReadStats] = useState(null);
-  const [pendingWithdrawalCount, setPendingWithdrawalCount] = useState(0);
+  const [withdrawalRequests, setWithdrawalRequests] = useState([]);
+  const [busyId, setBusyId] = useState(null);
 
   async function load() {
     setLoading(true);
@@ -68,7 +72,7 @@ export default function AdminEarningsPage() {
       // so it no longer maps cleanly onto one investment.
       try {
         const allWithdrawals = await getAllWithdrawalRequests();
-        setPendingWithdrawalCount(allWithdrawals.filter((r) => r.status === "pending").length);
+        setWithdrawalRequests(allWithdrawals.filter((r) => r.status === "pending"));
       } catch (e) {
         console.error("Failed to load withdrawal requests:", e);
       }
@@ -112,8 +116,7 @@ export default function AdminEarningsPage() {
         const completedDays = reviewsByUser.get(d.userId) || [];
         const reviewedDayCount = countReviewedEarningDays(d.approvedAt, now, completedDays);
         const calc = calculateInvestmentEarnings(d.planDaily, d.approvedAt, d.lifetimeWithdrawn || 0, reviewedDayCount, now);
-        const earnedToday = hasEarnedToday(d.approvedAt, now, completedDays);
-        return { ...d, ...calc, reviewedDayCount, earnedToday };
+        return { ...d, ...calc, reviewedDayCount };
       });
 
       // Soonest-due (or most overdue-looking) first: sort by withdrawable
@@ -133,18 +136,52 @@ export default function AdminEarningsPage() {
     load();
   }, []);
 
+  async function handleMarkPaid(req) {
+    setErr("");
+    setOk("");
+    setBusyId(req.id);
+    try {
+      await markCombinedWithdrawalPaid(req.id, req.userId, req.amount);
+      setOk("Withdrawal marked as paid.");
+      await load();
+    } catch (e) {
+      console.error(e);
+      setErr("Could not update withdrawal.");
+    }
+    setBusyId(null);
+  }
+
+  async function handleRejectWithdrawal(req) {
+    setErr("");
+    setOk("");
+    setBusyId(req.id);
+    try {
+      await rejectCombinedWithdrawal(req);
+      setOk("Withdrawal rejected and balance restored.");
+      await load();
+    } catch (e) {
+      console.error(e);
+      setErr("Could not reject withdrawal.");
+    }
+    setBusyId(null);
+  }
+
   let filtered = investments;
   if (searchName.trim()) {
     const q = searchName.trim().toLowerCase();
     filtered = filtered.filter((i) => i.userName?.toLowerCase().includes(q) || i.userEmail?.toLowerCase().includes(q));
   }
-  if (filter === "grace") filtered = filtered.filter((i) => i.stillInGracePeriod);
   if (filter === "has_balance") filtered = filtered.filter((i) => i.withdrawableBalance > 0);
-  if (filter === "review_pending") filtered = filtered.filter((i) => !i.stillInGracePeriod && !i.earnedToday);
+  if (filter === "grace") filtered = filtered.filter((i) => i.stillInGracePeriod);
+  if (filter === "pending_withdrawal") {
+    const pendingUserIds = new Set(withdrawalRequests.map((r) => r.userId));
+    filtered = filtered.filter((i) => pendingUserIds.has(i.userId));
+  }
 
   const totals = {
     withdrawable: investments.reduce((s, i) => s + i.withdrawableBalance, 0),
     lifetimeWithdrawn: investments.reduce((s, i) => s + (i.lifetimeWithdrawn || 0), 0),
+    lifetimeDeposited: investments.reduce((s, i) => s + (i.amount || 0), 0),
     missed: investments.reduce((s, i) => s + i.missedEarnings, 0),
   };
 
@@ -168,6 +205,11 @@ export default function AdminEarningsPage() {
           {err}
         </div>
       )}
+      {ok && (
+        <div style={{ background: "rgba(46,204,113,0.1)", border: "1px solid rgba(46,204,113,0.3)", borderRadius: 10, padding: 12, marginBottom: 16, color: C.green, fontSize: 13 }}>
+          {ok}
+        </div>
+      )}
 
       <div className="admin-grid" style={{ marginBottom: 20 }}>
         <div style={{ ...cardStyle, border: `1px solid ${C.green}28`, padding: 14 }}>
@@ -178,11 +220,55 @@ export default function AdminEarningsPage() {
           <div style={{ fontSize: 10, color: C.dim, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>Lifetime Withdrawn</div>
           <div style={{ fontSize: 20, fontWeight: 800, color: C.muted }}>₦{fmt(totals.lifetimeWithdrawn)}</div>
         </div>
+        <div style={{ ...cardStyle, border: `1px solid ${C.gold}28`, padding: 14 }}>
+          <div style={{ fontSize: 10, color: C.dim, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>Lifetime Deposited</div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: C.gold }}>₦{fmt(totals.lifetimeDeposited)}</div>
+        </div>
         <div style={{ ...cardStyle, border: `1px solid ${C.emerald}28`, padding: 14 }}>
           <div style={{ fontSize: 10, color: C.dim, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>Pending Withdrawal Requests</div>
-          <div style={{ fontSize: 20, fontWeight: 800, color: C.emerald }}>{pendingWithdrawalCount}</div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: C.emerald }}>{withdrawalRequests.length}</div>
         </div>
       </div>
+
+      {withdrawalRequests.length > 0 && (
+        <div style={{ marginBottom: 24 }}>
+          <h2 style={{ fontSize: 15, fontWeight: 800, marginBottom: 10, color: C.emerald }}>
+            Pending Withdrawal Requests ({withdrawalRequests.length})
+          </h2>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {withdrawalRequests.map((req) => (
+              <div key={req.id} style={{ ...cardStyle, border: `1px solid ${C.emerald}40`, padding: 14 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 10 }}>
+                  <div>
+                    <div style={{ fontSize: 14, color: "#F9F1E7", fontWeight: 700 }}>{req.userName}</div>
+                    <div style={{ fontSize: 11, color: C.dim, marginTop: 2 }}>
+                      {req.bankDetails?.bank} · {req.bankDetails?.accNo} · {req.bankDetails?.accName}
+                    </div>
+                    <div style={{ fontSize: 10.5, color: C.dim, marginTop: 2 }}>Requested {fmtDate(req.requestedAt)} · Ref: {req.ref}</div>
+                  </div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: C.emerald }}>₦{fmt(req.amount)}</div>
+                </div>
+                <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                  <button
+                    disabled={busyId === req.id}
+                    onClick={() => handleMarkPaid(req)}
+                    style={{ ...buttonStyle("gold"), flex: 1, padding: "9px 14px", fontSize: 12 }}
+                  >
+                    {busyId === req.id ? "…" : "Mark Paid"}
+                  </button>
+                  <button
+                    disabled={busyId === req.id}
+                    onClick={() => handleRejectWithdrawal(req)}
+                    style={{ ...buttonStyle("ghost"), flex: 1, padding: "9px 14px", fontSize: 12 }}
+                  >
+                    {busyId === req.id ? "…" : "Reject & Refund"}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="admin-search-grid" style={{ marginBottom: 14 }}>
         <FormInput placeholder="Search by name or email" value={searchName} onChange={(e) => setSearchName(e.target.value)} />
@@ -192,8 +278,8 @@ export default function AdminEarningsPage() {
         {[
           { key: "all", label: `All (${investments.length})` },
           { key: "has_balance", label: "Has withdrawable balance" },
-          { key: "review_pending", label: "Hasn't reviewed today" },
           { key: "grace", label: "Still in 24h grace period" },
+          { key: "pending_withdrawal", label: `Has pending withdrawal (${withdrawalRequests.length})` },
         ].map((f) => (
           <button key={f.key} onClick={() => setFilter(f.key)} style={{ ...buttonStyle(filter === f.key ? "gold" : "ghost"), padding: "7px 14px", fontSize: 12 }}>
             {f.label}
@@ -233,22 +319,16 @@ export default function AdminEarningsPage() {
                   <div style={{ fontSize: 13, color: "#F9F1E7", fontWeight: 600 }}>₦{fmt(inv.planDaily)}/day</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: 10, color: C.dim, textTransform: "uppercase", letterSpacing: "0.06em" }}>Today's Earning</div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: inv.earnedToday ? C.green : C.dim }}>
-                    {inv.stillInGracePeriod ? "In grace period" : inv.earnedToday ? `₦${fmt(inv.planDaily)}` : "Pending — will pay on next review"}
-                  </div>
-                </div>
-                <div>
                   <div style={{ fontSize: 10, color: C.dim, textTransform: "uppercase", letterSpacing: "0.06em" }}>Days Elapsed</div>
                   <div style={{ fontSize: 13, color: "#F9F1E7", fontWeight: 600 }}>{inv.daysEarning}</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: 10, color: C.dim, textTransform: "uppercase", letterSpacing: "0.06em" }}>Days Reviewed</div>
+                  <div style={{ fontSize: 10, color: C.dim, textTransform: "uppercase", letterSpacing: "0.06em" }}>Days Read</div>
                   <div style={{ fontSize: 13, color: "#F9F1E7", fontWeight: 600 }}>{inv.reviewedDayCount} / {inv.daysEarning}</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: 10, color: C.dim, textTransform: "uppercase", letterSpacing: "0.06em" }}>Pending (unlocks on next review)</div>
-                  <div style={{ fontSize: 13, color: inv.missedEarnings > 0 ? C.green : "#F9F1E7", fontWeight: 600 }}>₦{fmt(inv.missedEarnings)}</div>
+                  <div style={{ fontSize: 10, color: C.dim, textTransform: "uppercase", letterSpacing: "0.06em" }}>Missed (unread)</div>
+                  <div style={{ fontSize: 13, color: inv.missedEarnings > 0 ? C.red : "#F9F1E7", fontWeight: 600 }}>₦{fmt(inv.missedEarnings)}</div>
                 </div>
                 <div>
                   <div style={{ fontSize: 10, color: C.dim, textTransform: "uppercase", letterSpacing: "0.06em" }}>Lifetime Withdrawn</div>

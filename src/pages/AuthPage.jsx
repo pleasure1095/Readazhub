@@ -217,6 +217,25 @@ export default function AuthPage() {
           </button>
         </div>
       </div>
+
+      {/* Builder credit — per the site owner's explicit request, visible
+          on the very first screen a user sees, not just buried in
+          Settings. Kept small/subtle so it doesn't compete with the
+          sign-in/register form itself. */}
+      <a
+        href="https://wa.me/18455713692"
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{
+          marginTop: 20,
+          fontSize: 11.5,
+          color: C.dim,
+          textDecoration: "none",
+          fontWeight: 600,
+        }}
+      >
+        Built by High 5ive Digitals
+      </a>
     </div>
   );
 }

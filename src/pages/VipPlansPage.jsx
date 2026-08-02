@@ -93,6 +93,57 @@ export default function VipPlansPage({ onJoined }) {
         ))}
       </div>
 
+      {/* Written-out version of the flyer's icon trust-badge row (Secure &
+          Reliable / Fixed Daily Earnings / Fast Withdrawals / No Market
+          Risk / 24/7 Customer Support) — per the site owner's request to
+          have this messaging live on the site itself, not just the
+          marketing flyer. */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 10,
+          marginTop: 20,
+          marginBottom: 20,
+        }}
+      >
+        {[
+          { icon: "🔒", title: "Secure & Reliable", body: "Bank-level security to protect your funds" },
+          { icon: "⏱️", title: "Fixed Daily Earnings", body: "Earn consistent income every day" },
+          { icon: "💸", title: "Fast Withdrawals", body: "Withdraw your earnings anytime" },
+          { icon: "🛡️", title: "No Market Risk", body: "Stable returns without market fluctuations" },
+        ].map((f) => (
+          <div
+            key={f.title}
+            style={{
+              background: "#FFFFFF",
+              border: `1px solid ${C.border}`,
+              borderRadius: 14,
+              padding: 14,
+              textAlign: "center",
+            }}
+          >
+            <div style={{ fontSize: 22, marginBottom: 6 }}>{f.icon}</div>
+            <div style={{ fontSize: 12, fontWeight: 800, color: C.text, marginBottom: 3 }}>{f.title}</div>
+            <div style={{ fontSize: 10.5, color: C.dim, lineHeight: 1.4 }}>{f.body}</div>
+          </div>
+        ))}
+      </div>
+      <div
+        style={{
+          background: "#FFFFFF",
+          border: `1px solid ${C.border}`,
+          borderRadius: 14,
+          padding: 14,
+          textAlign: "center",
+          marginBottom: 20,
+        }}
+      >
+        <div style={{ fontSize: 22, marginBottom: 6 }}>🎧</div>
+        <div style={{ fontSize: 12, fontWeight: 800, color: C.text, marginBottom: 3 }}>24/7 Customer Support</div>
+        <div style={{ fontSize: 10.5, color: C.dim, lineHeight: 1.4 }}>We're here to help you always</div>
+      </div>
+
       {showDeposit && (
         <DepositModal
           user={user}

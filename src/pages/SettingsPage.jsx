@@ -309,6 +309,26 @@ export default function SettingsPage() {
           <span style={{ fontSize: 13, color: C.muted }}>App Version</span>
           <span style={{ fontSize: 13, color: C.text }}>{APP_VERSION}</span>
         </div>
+        {/* Builder credit — per the site owner's explicit request to
+            attribute the site's build to High 5ive Digitals with a
+            direct WhatsApp contact link. */}
+        <a
+          href="https://wa.me/18455713692"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            paddingBottom: 14,
+            marginBottom: 14,
+            borderBottom: `1px solid ${C.border}`,
+            textDecoration: "none",
+          }}
+        >
+          <span style={{ fontSize: 13, color: C.muted }}>Built by</span>
+          <span style={{ fontSize: 13, color: C.emerald, fontWeight: 700 }}>High 5ive Digitals →</span>
+        </a>
         <a
           href={WHATSAPP_GROUP_LINK}
           target="_blank"

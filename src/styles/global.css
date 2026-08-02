@@ -10,7 +10,8 @@ html {
   text-size-adjust: 100%;
 }
 body {
-  background: #241C20;
+  background: #FBF6EF;
+  color: #241C20;
   font-family: system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   font-size: 15px;
@@ -23,7 +24,7 @@ button {
   min-height: 44px; /* Apple/Google's recommended minimum touch target size */
 }
 ::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); }
+::-webkit-scrollbar-track { background: rgba(36,28,32,0.05); }
 ::-webkit-scrollbar-thumb { background: rgba(212,65,92,0.5); border-radius: 3px; }
 
 button:disabled {
@@ -81,7 +82,8 @@ button:disabled {
 .stat-scroll-card {
   flex: 0 0 auto;
   min-width: 132px;
-  background: linear-gradient(160deg, rgba(212,65,92,0.22), rgba(36,28,32,0.6));
+  background: linear-gradient(160deg, rgba(212,65,92,0.06), rgba(255,255,255,0.9));
+  border: 1px solid rgba(36,28,32,0.1);
   border-radius: 14px;
   padding: 14px 16px;
 }

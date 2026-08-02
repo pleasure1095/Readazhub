@@ -10,7 +10,7 @@ import { getCheckInStatus } from "../services/checkins";
 import PlanCarousel from "../components/PlanCarousel";
 import EarnersTicker from "../components/EarnersTicker";
 import CheckInWidget from "../components/CheckInWidget";
-import DailyReviewsWidget from "../components/DailyReviewsWidget";
+import ReadEarnWidget from "../components/ReadEarnWidget";
 import PromoBanner from "../components/PromoBanner";
 import ActionGrid from "../components/ActionGrid";
 import ActivityFeed from "../components/ActivityFeed";
@@ -18,6 +18,7 @@ import WelcomeBanner from "../components/WelcomeBanner";
 import DepositModal from "../components/DepositModal";
 import CombinedWithdrawModal from "../components/CombinedWithdrawModal";
 import { getActivityFeed } from "../services/activityFeed";
+import { getReferralWithdrawableBalance } from "../services/referralEarnings";
 
 function chipStyle(color) {
   return {
@@ -47,6 +48,7 @@ export default function DashboardPage() {
   const [completedReviewDays, setCompletedReviewDays] = useState([]);
   const [checkInBalance, setCheckInBalance] = useState(0);
   const [checkInLifetimeWithdrawn, setCheckInLifetimeWithdrawn] = useState(0);
+  const [referralEarnings, setReferralEarnings] = useState({ lifetimeEarned: 0, withdrawableBalance: 0, level1Total: 0, level2Total: 0 });
   const [loading, setLoading] = useState(true);
   const [showDeposit, setShowDeposit] = useState(false);
   const [preselectedPlanId, setPreselectedPlanId] = useState(null);
@@ -71,9 +73,20 @@ export default function DashboardPage() {
       const checkInStatus = await getCheckInStatus(user.uid);
       setCheckInBalance(checkInStatus.unlockedBalance || 0);
       setCheckInLifetimeWithdrawn(checkInStatus.lifetimeWithdrawn || 0);
-      // Also refresh the user profile — referralBonusTotal can change from
-      // an admin approving someone else's deposit (this user acting as the
-      // referrer), which this session wouldn't otherwise see until re-login.
+      // Referral bonus (9% Level 1 / 2% Level 2, recurring on actual daily
+      // earnings) is live-computed by walking the user's whole referral
+      // network's real deposit + review history — see
+      // services/referralEarnings.js. Not stored, so it must be
+      // recomputed on every load rather than read off the user profile.
+      const referralResult = await getReferralWithdrawableBalance(
+        user.referralCode,
+        user.referralLifetimeWithdrawn || 0
+      );
+      setReferralEarnings(referralResult);
+      // Also refresh the user profile — welcomeBonus and
+      // referralLifetimeWithdrawn can change from actions taken elsewhere
+      // (e.g. a withdrawal from another session), which this session
+      // wouldn't otherwise see until re-login.
       await refreshUser();
     } catch (e) {
       console.error("Failed to load deposits:", e);
@@ -106,7 +119,7 @@ export default function DashboardPage() {
   const isVipMember = approved.length > 0;
 
   // "Migrate" suggests the next tier above the user's current highest
-  // active plan, since GADJIZ plans don't expire (unlike the reference
+  // active plan, since READAZHUB plans don't expire (unlike the reference
   // design's 30-day cycles) — this is just a friendlier entry point into
   // the same deposit flow as a fresh deposit, defaulting to an upgrade
   // rather than starting back at VIP 1.
@@ -160,7 +173,11 @@ export default function DashboardPage() {
   const totalAvailableEarnings = investments.reduce((s, i) => s + i.availableEarnings, 0);
   const totalWithdrawableProfit = investments.reduce((s, i) => s + i.withdrawableBalance, 0);
   const totalMissedEarnings = investments.reduce((s, i) => s + i.missedEarnings, 0);
-  const referralBonus = user.referralBonusTotal || 0;
+  // Live-computed (9%/2% two-level, recurring on actual daily earnings) —
+  // NOT read from user.referralBonusTotal, which no longer exists as a
+  // field. This is the WITHDRAWABLE portion (lifetime earned minus
+  // already withdrawn), same shape as totalWithdrawableProfit above.
+  const referralBonus = referralEarnings.withdrawableBalance || 0;
   const welcomeBonus = user.welcomeBonus || 0;
 
   const withinHours = isWithinWithdrawalHours();
@@ -228,28 +245,69 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* REORDERED this pass: Action Grid now sits right after the alert
+          banners, immediately visible without scrolling — matching the
+          reference app's layout where the icon grid is one of the first
+          things on screen, not buried under a long stat block. The daily
+          task widgets (Read & Earn, Check-in) also moved up, ahead of
+          Activity Feed and the stat scroller, since completing today's
+          task is the single most important action-item on this screen
+          and previously required scrolling past a feed of past events to
+          reach it. */}
+      <ActionGrid
+        onDeposit={openNewDeposit}
+        onMigrate={openMigrate}
+        onWithdraw={openWithdraw}
+        onSupport={openSupport}
+      />
+
       {/* Balance & bonus overview — 4 "major" figures get real visual
           weight up top (Total Earnings, Withdrawable Profit, Welcome
-          Bonus, Referral Bonus), then ALL 8 stats (majors + the rest)
-          flow together in a single auto-scrolling row below. No swipe
-          needed — the row scrolls itself continuously and loops, so a
-          narrow phone screen doesn't collapse everything into one long
-          column. The full data array is defined once and reused by both
-          rows so the two views can never drift out of sync with each
-          other. */}
+          Bonus, Referral Bonus). The full 8-stat auto-scrolling row now
+          lives further down the page (see below), after the daily task
+          widgets, since a first-time glance at 4 clear numbers matters
+          more here than the complete breakdown. */}
+      {(() => {
+        const majorStats = [
+          { key: "totalEarnings", label: "Total Earnings", value: `₦${fmt(totalAvailableEarnings + checkInBalance)}`, color: C.lime },
+          { key: "withdrawable", label: "Withdrawable Profit", value: `₦${fmt(totalWithdrawableProfit + referralBonus + welcomeBonus + checkInBalance)}`, color: C.emerald },
+          { key: "welcomeBonus", label: "Welcome Bonus", value: `₦${fmt(welcomeBonus)}`, color: C.purple },
+          { key: "referralBonus", label: "Referral Bonus", value: `₦${fmt(referralBonus)}`, color: C.forest },
+        ];
+        return (
+          <div className="major-stat-grid" style={{ marginBottom: 20 }}>
+            {majorStats.map((s) => (
+              <div key={s.key} style={{ ...cardStyle, border: `1px solid ${s.color}35`, padding: 18 }}>
+                <div style={{ fontSize: 10.5, letterSpacing: "0.1em", color: C.dim, textTransform: "uppercase", marginBottom: 8, fontWeight: 700 }}>
+                  {s.label}
+                </div>
+                <div style={{ fontSize: 23, fontWeight: 800, color: s.color }}>{s.value}</div>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+
+      <ReadEarnWidget userId={user.uid} isVipMember={isVipMember} onEarningsUnlocked={load} />
+      <CheckInWidget userId={user.uid} isVipMember={isVipMember} />
+
+      <PromoBanner />
+
+      {/* Full 8-stat breakdown, auto-scrolling — kept for anyone who wants
+          the complete picture (Total Investment, Daily Earnings, Missed,
+          Active Plans, on top of the 4 majors above), but now positioned
+          after the primary action items rather than before them. */}
       {(() => {
         const allStats = [
           { key: "totalInvestment", label: "Total Investment", value: `₦${fmt(totalInvested)}`, color: C.emerald },
           { key: "dailyEarnings", label: "Daily Earnings", value: `₦${fmt(totalDaily)}`, color: C.green },
           { key: "totalEarnings", label: "Total Earnings", value: `₦${fmt(totalAvailableEarnings + checkInBalance)}`, color: C.lime },
-          { key: "missed", label: "Pending (Unlocks Next Review)", value: `₦${fmt(totalMissedEarnings)}`, color: C.dim },
+          { key: "missed", label: "Missed (Unread)", value: `₦${fmt(totalMissedEarnings)}`, color: C.dim },
           { key: "referralBonus", label: "Referral Bonus", value: `₦${fmt(referralBonus)}`, color: C.forest },
-          { key: "welcomeBonus", label: "Welcome Bonus", value: `₦${fmt(welcomeBonus)}`, color: "#D4506A" },
+          { key: "welcomeBonus", label: "Welcome Bonus", value: `₦${fmt(welcomeBonus)}`, color: C.purple },
           { key: "withdrawable", label: "Withdrawable Profit", value: `₦${fmt(totalWithdrawableProfit + referralBonus + welcomeBonus + checkInBalance)}`, color: C.emerald },
           { key: "activePlans", label: "Active VIP Plans", value: investments.length, color: C.green },
         ];
-        const majorKeys = new Set(["totalEarnings", "withdrawable", "welcomeBonus", "referralBonus"]);
-        const majorStats = allStats.filter((s) => majorKeys.has(s.key));
         // Duplicated once so the CSS scroll-loop animation can slide from
         // 0% to -50% and land back exactly where it started, giving a
         // seamless infinite loop instead of a visible jump/reset.
@@ -257,18 +315,10 @@ export default function DashboardPage() {
 
         return (
           <>
-            <div className="major-stat-grid" style={{ marginBottom: 16 }}>
-              {majorStats.map((s) => (
-                <div key={s.key} style={{ ...cardStyle, border: `1px solid ${s.color}35`, padding: 18 }}>
-                  <div style={{ fontSize: 10.5, letterSpacing: "0.1em", color: C.dim, textTransform: "uppercase", marginBottom: 8, fontWeight: 700 }}>
-                    {s.label}
-                  </div>
-                  <div style={{ fontSize: 23, fontWeight: 800, color: s.color }}>{s.value}</div>
-                </div>
-              ))}
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 6 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: C.dim, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                Full Breakdown
+              </span>
               <button
                 onClick={() => setStatScrollPaused((p) => !p)}
                 style={{
@@ -304,16 +354,7 @@ export default function DashboardPage() {
         );
       })()}
 
-      <PromoBanner />
-      <ActionGrid
-        onDeposit={openNewDeposit}
-        onMigrate={openMigrate}
-        onWithdraw={openWithdraw}
-        onSupport={openSupport}
-      />
       <ActivityFeed events={activityEvents} />
-      <CheckInWidget userId={user.uid} isVipMember={isVipMember} />
-      <DailyReviewsWidget userId={user.uid} isVipMember={isVipMember} />
       <EarnersTicker />
       <PlanCarousel />
 
@@ -372,13 +413,13 @@ export default function DashboardPage() {
                   )}
                   {inv.missedEarnings > 0 && (
                     <div style={{ fontSize: 11, color: C.dim, marginTop: 4, fontWeight: 600 }}>
-                      ₦{fmt(inv.missedEarnings)} pending — complete today's review to unlock it
+                      ₦{fmt(inv.missedEarnings)} missed on unread days
                     </div>
                   )}
                 </div>
                 <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: 24, fontWeight: 800, color: C.green }}>₦{fmt(inv.withdrawableBalance)}</div>
-                  <div style={{ fontSize: 11, color: C.dim }}>withdrawable profit</div>
+                  <div style={{ fontSize: 24, fontWeight: 800, color: C.green }}>₦{fmt(inv.availableEarnings)}</div>
+                  <div style={{ fontSize: 11, color: C.dim }}>earned so far</div>
                 </div>
               </div>
             </div>
@@ -439,7 +480,8 @@ export default function DashboardPage() {
           userId={user.uid}
           userName={user.name}
           investments={investments}
-          referralBonusTotal={referralBonus}
+          referralWithdrawableBalance={referralBonus}
+          referralLifetimeWithdrawn={user.referralLifetimeWithdrawn || 0}
           welcomeBonus={welcomeBonus}
           checkInBalance={checkInBalance}
           checkInLifetimeWithdrawn={checkInLifetimeWithdrawn}

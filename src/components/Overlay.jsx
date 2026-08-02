@@ -1,3 +1,5 @@
+import { C } from "../styles/theme";
+
 export default function Overlay({ children, onClose }) {
   return (
     <div
@@ -5,7 +7,7 @@ export default function Overlay({ children, onClose }) {
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(0,0,0,0.8)",
+        background: "rgba(36,28,32,0.5)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -16,15 +18,15 @@ export default function Overlay({ children, onClose }) {
     >
       <div
         style={{
-          background: "#0F1611",
-          border: "1px solid #2ECC7128",
+          background: "#FFFFFF",
+          border: `1px solid ${C.border}`,
           borderRadius: 20,
           padding: 28,
           width: "100%",
           maxWidth: 500,
           maxHeight: "90vh",
           overflowY: "auto",
-          boxShadow: "0 40px 80px rgba(0,0,0,0.7)",
+          boxShadow: "0 40px 80px rgba(36,28,32,0.25)",
         }}
         className="fade"
       >

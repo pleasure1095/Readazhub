@@ -9,18 +9,27 @@ export default function ReferralsPage() {
   const [copied, setCopied] = useState("");
   const [network, setNetwork] = useState({ level1Total: 0, level2Total: 0, lifetimeEarned: 0, level1Referrals: [], level2Referrals: [] });
   const [loading, setLoading] = useState(true);
+  // DEBUG: temporary error surface added while diagnosing why referral
+  // bonuses aren't reflecting for some users despite correctly-linked
+  // referrerCode data — previously any failure in
+  // calculateReferralNetworkEarnings() was swallowed silently and just
+  // left the page showing ₦0 / no referrals, indistinguishable from
+  // "genuinely has no referrals yet." This makes any real error visible
+  // directly on the page so it can be diagnosed from a screenshot alone.
+  const [debugError, setDebugError] = useState("");
 
-  // Referral earnings are now live-computed (9% Level 1 / 2% Level 2,
-  // recurring on each referred user's actual daily earnings) rather than
-  // a stored balance — see services/referralEarnings.js. Fetched fresh on
-  // mount so this always reflects the real, current state of the whole
-  // referral network, not a cached/stale figure.
   useEffect(() => {
     refreshUser();
-    calculateReferralNetworkEarnings(user.referralCode).then((result) => {
-      setNetwork(result);
-      setLoading(false);
-    });
+    calculateReferralNetworkEarnings(user.referralCode)
+      .then((result) => {
+        setNetwork(result);
+        setLoading(false);
+      })
+      .catch((e) => {
+        console.error("Referral network calculation failed:", e);
+        setDebugError(`${e.code || ""} ${e.message || String(e)}`.trim());
+        setLoading(false);
+      });
   }, []);
 
   const link = `${window.location.origin}${window.location.pathname}?ref=${user.referralCode}`;
@@ -37,6 +46,26 @@ export default function ReferralsPage() {
       <h2 style={{ fontSize: 18, fontWeight: 800, marginBottom: 18 }}>
         Referrals
       </h2>
+
+      {debugError && (
+        <div
+          style={{
+            background: "rgba(207,120,120,0.12)",
+            border: "1px solid rgba(207,120,120,0.4)",
+            borderRadius: 10,
+            padding: 14,
+            marginBottom: 18,
+            fontSize: 12.5,
+            color: "#B23B2E",
+            fontWeight: 600,
+            lineHeight: 1.5,
+          }}
+        >
+          ⚠️ Referral calculation error (please screenshot this and send to support):
+          <br />
+          {debugError}
+        </div>
+      )}
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
         <div style={{ ...cardStyle, border: `1px solid ${C.emerald}28`, padding: 16 }}>
@@ -80,11 +109,6 @@ export default function ReferralsPage() {
         </div>
       </div>
 
-      {/* Named list of who's actually in the user's referral network —
-          previously the data (name + bonus per referred user) was
-          already being fetched by calculateReferralNetworkEarnings() but
-          never rendered anywhere, so a user could see a COUNT and a
-          TOTAL but not WHO their referrals actually were. */}
       {!loading && (network.level1Referrals.length > 0 || network.level2Referrals.length > 0) && (
         <div style={{ ...cardStyle, marginBottom: 20 }}>
           <div style={{ fontSize: 13, fontWeight: 800, color: C.text, marginBottom: 12 }}>Your Referrals</div>

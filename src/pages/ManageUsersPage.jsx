@@ -1,29 +1,22 @@
 import { useEffect, useState } from "react";
-import { listAllUsers, setUserRole } from "../services/adminUsers";
 import { useAuth } from "../context/AuthContext";
-import { C, buttonStyle, cardStyle, labelStyle } from "../styles/theme";
+import { C, buttonStyle, cardStyle } from "../styles/theme";
 import FormInput from "../components/FormInput";
-import { ErrorBox, SuccessBox } from "../components/MessageBox";
+import { listAllUsers, setUserRole } from "../services/adminUsers";
 
 function chipStyle(color) {
   return {
     display: "inline-block",
-    padding: "3px 12px",
+    padding: "2px 10px",
     borderRadius: 20,
     background: `${color}22`,
     color,
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: 700,
     letterSpacing: "0.06em",
   };
 }
 
-/**
- * Admin-only screen for viewing all registered users and promoting/demoting
- * their role. This replaces "edit Firestore by hand" as the way to grant
- * admin access — Firestore rules are still the real enforcement; this is
- * just a safer, auditable way to trigger the same write.
- */
 export default function ManageUsersPage() {
   const { user: currentAdmin } = useAuth();
   const [users, setUsers] = useState([]);
@@ -32,16 +25,16 @@ export default function ManageUsersPage() {
   const [err, setErr] = useState("");
   const [ok, setOk] = useState("");
   const [busyUid, setBusyUid] = useState(null);
+  const [expandedUid, setExpandedUid] = useState(null);
 
   async function load() {
     setLoading(true);
-    setErr("");
     try {
-      const list = await listAllUsers();
-      setUsers(list);
+      const all = await listAllUsers();
+      setUsers(all);
     } catch (e) {
       console.error(e);
-      setErr("Could not load users. Please try again.");
+      setErr("Could not load users.");
     }
     setLoading(false);
   }
@@ -53,26 +46,15 @@ export default function ManageUsersPage() {
   async function toggleRole(u) {
     setErr("");
     setOk("");
-    if (u.uid === currentAdmin.uid) {
-      setErr("You cannot change your own role.");
-      return;
-    }
-    const nextRole = u.role === "admin" ? "user" : "admin";
-    const confirmed = window.confirm(
-      nextRole === "admin"
-        ? `Grant admin access to ${u.name}? They will be able to approve deposits and manage users.`
-        : `Remove admin access from ${u.name}?`
-    );
-    if (!confirmed) return;
-
     setBusyUid(u.uid);
     try {
-      await setUserRole(u.uid, nextRole);
-      setUsers((prev) => prev.map((p) => (p.uid === u.uid ? { ...p, role: nextRole } : p)));
-      setOk(`${u.name} is now ${nextRole === "admin" ? "an admin" : "a regular user"}.`);
+      const newRole = u.role === "admin" ? "user" : "admin";
+      await setUserRole(u.uid, newRole);
+      setOk(`${u.name} is now ${newRole === "admin" ? "an admin" : "a regular user"}.`);
+      await load();
     } catch (e) {
       console.error(e);
-      setErr("Could not update role. Please try again.");
+      setErr("Could not update role.");
     }
     setBusyUid(null);
   }
@@ -83,78 +65,141 @@ export default function ManageUsersPage() {
     return u.name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q);
   });
 
+  /**
+   * Direct (Level 1) referrals for a given user, computed client-side
+   * from the SAME full user list already loaded for this page — no
+   * extra Firestore reads needed, since listAllUsers() already returns
+   * every user's referrerCode. This intentionally shows Level 1 only
+   * (not the full 2-level network with live-computed earnings, which is
+   * services/referralEarnings.js — a heavier per-user computation meant
+   * for a single user's own Referrals page, not for rendering inline in
+   * a list of potentially many admin-viewed users at once).
+   */
+  function getDirectReferrals(referralCode) {
+    if (!referralCode) return [];
+    return users.filter((u) => u.referrerCode === referralCode);
+  }
+
+  if (loading) return <div style={{ textAlign: "center", padding: 60, color: C.dim }}>Loading users…</div>;
+
   return (
     <div>
-      <h2 style={{ fontSize: 18, fontWeight: 800, marginBottom: 8 }}>
-        Manage Users
-      </h2>
+      <h1 style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>Manage Users</h1>
       <p style={{ fontSize: 13, color: C.muted, marginBottom: 20 }}>
-        View all registered users and manage admin access.
+        {users.length} total user{users.length === 1 ? "" : "s"}
       </p>
 
-      <ErrorBox msg={err} />
-      <SuccessBox msg={ok} />
+      {err && (
+        <div style={{ background: "rgba(207,120,120,0.1)", border: "1px solid rgba(207,120,120,0.3)", borderRadius: 10, padding: 12, marginBottom: 16, color: C.red, fontSize: 13 }}>
+          {err}
+        </div>
+      )}
+      {ok && (
+        <div style={{ background: "rgba(46,204,113,0.1)", border: "1px solid rgba(46,204,113,0.3)", borderRadius: 10, padding: 12, marginBottom: 16, color: C.green, fontSize: 13 }}>
+          {ok}
+        </div>
+      )}
 
-      <div style={{ marginBottom: 20 }}>
-        <FormInput
-          placeholder="Search by name or email"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+      <div style={{ marginBottom: 18 }}>
+        <FormInput placeholder="Search by name or email" value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>
 
-      {loading ? (
-        <div style={{ textAlign: "center", padding: 50, color: C.dim }}>Loading users…</div>
-      ) : filtered.length === 0 ? (
-        <div
-          style={{
-            textAlign: "center",
-            padding: 50,
-            background: C.surface,
-            border: `1px dashed ${C.border}`,
-            borderRadius: 14,
-            color: C.dim,
-          }}
-        >
-          {search ? "No users match your search" : "No users found"}
+      {filtered.length === 0 ? (
+        <div style={{ textAlign: "center", padding: 50, background: C.surface, border: `1px dashed ${C.border}`, borderRadius: 14, color: C.dim }}>
+          No users match this search.
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {filtered.map((u) => (
-            <div
-              key={u.uid}
-              style={{
-                ...cardStyle,
-                padding: 16,
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                flexWrap: "wrap",
-                gap: 12,
-              }}
-            >
-              <div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
-                  <span style={{ fontSize: 14, color: C.text, fontWeight: 500 }}>{u.name}</span>
-                  <span style={chipStyle(u.role === "admin" ? C.red : C.green)}>
-                    {u.role === "admin" ? "ADMIN" : "USER"}
-                  </span>
-                  {u.uid === currentAdmin.uid && <span style={chipStyle(C.blue)}>YOU</span>}
-                </div>
-                <div style={{ fontSize: 12, color: C.muted }}>{u.email}</div>
-                <div style={{ fontSize: 11, color: C.dim, marginTop: 2 }}>
-                  Referral code: {u.referralCode}
-                </div>
-              </div>
-              <button
-                style={{ ...buttonStyle(u.role === "admin" ? "danger" : "ghost"), fontSize: 12, padding: "8px 16px" }}
-                onClick={() => toggleRole(u)}
-                disabled={busyUid === u.uid || u.uid === currentAdmin.uid}
+          {filtered.map((u) => {
+            const directReferrals = getDirectReferrals(u.referralCode);
+            const isExpanded = expandedUid === u.uid;
+            return (
+              <div
+                key={u.uid}
+                style={{
+                  ...cardStyle,
+                  padding: 16,
+                }}
               >
-                {busyUid === u.uid ? "Updating…" : u.role === "admin" ? "Remove Admin" : "Make Admin"}
-              </button>
-            </div>
-          ))}
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                    gap: 12,
+                  }}
+                >
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
+                      <span style={{ fontSize: 14, color: C.text, fontWeight: 500 }}>{u.name}</span>
+                      <span style={chipStyle(u.role === "admin" ? C.red : C.green)}>
+                        {u.role === "admin" ? "ADMIN" : "USER"}
+                      </span>
+                      {u.uid === currentAdmin.uid && <span style={chipStyle(C.blue)}>YOU</span>}
+                    </div>
+                    <div style={{ fontSize: 12, color: C.muted }}>{u.email}</div>
+                    <div style={{ fontSize: 11, color: C.dim, marginTop: 2 }}>
+                      Referral code: {u.referralCode}
+                    </div>
+                  </div>
+                  <button
+                    style={{ ...buttonStyle(u.role === "admin" ? "danger" : "ghost"), fontSize: 12, padding: "8px 16px" }}
+                    onClick={() => toggleRole(u)}
+                    disabled={busyUid === u.uid || u.uid === currentAdmin.uid}
+                  >
+                    {busyUid === u.uid ? "Updating…" : u.role === "admin" ? "Remove Admin" : "Make Admin"}
+                  </button>
+                </div>
+
+                {/* Referral visibility for admin — previously there was
+                    no way to see who a user referred at all, only their
+                    own referral code. This shows direct (Level 1)
+                    referral count always, and expands to list names on
+                    tap. */}
+                <button
+                  onClick={() => setExpandedUid(isExpanded ? null : u.uid)}
+                  style={{
+                    marginTop: 10,
+                    background: "none",
+                    border: "none",
+                    padding: 0,
+                    minHeight: "auto",
+                    cursor: directReferrals.length > 0 ? "pointer" : "default",
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    color: directReferrals.length > 0 ? C.emerald : C.dim,
+                  }}
+                  disabled={directReferrals.length === 0}
+                >
+                  {directReferrals.length === 0
+                    ? "No referrals yet"
+                    : `${directReferrals.length} direct referral${directReferrals.length === 1 ? "" : "s"} ${isExpanded ? "▲" : "▼"}`}
+                </button>
+
+                {isExpanded && directReferrals.length > 0 && (
+                  <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
+                    {directReferrals.map((r) => (
+                      <div
+                        key={r.uid}
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          padding: "6px 10px",
+                          background: "rgba(36,28,32,0.03)",
+                          borderRadius: 8,
+                        }}
+                      >
+                        <span style={{ fontSize: 12.5, color: C.text, fontWeight: 600 }}>{r.name}</span>
+                        <span style={{ fontSize: 11, color: C.dim }}>{r.email}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

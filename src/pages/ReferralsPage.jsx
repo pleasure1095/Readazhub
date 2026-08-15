@@ -80,6 +80,67 @@ export default function ReferralsPage() {
         </div>
       </div>
 
+      {/* Named list of who's actually in the user's referral network —
+          previously the data (name + bonus per referred user) was
+          already being fetched by calculateReferralNetworkEarnings() but
+          never rendered anywhere, so a user could see a COUNT and a
+          TOTAL but not WHO their referrals actually were. */}
+      {!loading && (network.level1Referrals.length > 0 || network.level2Referrals.length > 0) && (
+        <div style={{ ...cardStyle, marginBottom: 20 }}>
+          <div style={{ fontSize: 13, fontWeight: 800, color: C.text, marginBottom: 12 }}>Your Referrals</div>
+          {network.level1Referrals.length > 0 && (
+            <div style={{ marginBottom: network.level2Referrals.length > 0 ? 16 : 0 }}>
+              <div style={{ fontSize: 10.5, color: C.dim, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8, fontWeight: 700 }}>
+                Level 1 — Direct
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {network.level1Referrals.map((r) => (
+                  <div
+                    key={r.uid}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      padding: "8px 10px",
+                      background: "rgba(36,28,32,0.03)",
+                      borderRadius: 8,
+                    }}
+                  >
+                    <span style={{ fontSize: 13, color: C.text, fontWeight: 600 }}>{r.name || "Unnamed user"}</span>
+                    <span style={{ fontSize: 12.5, color: C.emerald, fontWeight: 700 }}>₦{r.bonus.toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {network.level2Referrals.length > 0 && (
+            <div>
+              <div style={{ fontSize: 10.5, color: C.dim, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8, fontWeight: 700 }}>
+                Level 2 — Second-level
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {network.level2Referrals.map((r) => (
+                  <div
+                    key={r.uid}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      padding: "8px 10px",
+                      background: "rgba(36,28,32,0.03)",
+                      borderRadius: 8,
+                    }}
+                  >
+                    <span style={{ fontSize: 13, color: C.text, fontWeight: 600 }}>{r.name || "Unnamed user"}</span>
+                    <span style={{ fontSize: 12.5, color: C.emerald, fontWeight: 700 }}>₦{r.bonus.toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       <div style={{ ...cardStyle, marginBottom: 20 }}>
         <div style={{ marginBottom: 14 }}>
           <div style={{ fontSize: 11, color: C.dim, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
@@ -90,7 +151,7 @@ export default function ReferralsPage() {
               style={{
                 flex: 1,
                 minWidth: 200,
-                background: "rgba(36,28,32,0.04)",
+                background: "rgba(255,255,255,0.04)",
                 border: `1px solid ${C.border}`,
                 borderRadius: 8,
                 padding: "10px 12px",
@@ -116,7 +177,7 @@ export default function ReferralsPage() {
               style={{
                 flex: 1,
                 minWidth: 200,
-                background: "rgba(36,28,32,0.04)",
+                background: "rgba(255,255,255,0.04)",
                 border: `1px solid ${C.border}`,
                 borderRadius: 8,
                 padding: "10px 12px",

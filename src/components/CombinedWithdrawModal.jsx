@@ -2,7 +2,7 @@ import { useState } from "react";
 import { C, buttonStyle, labelStyle } from "../styles/theme";
 import { BANKS, isWithinWithdrawalHours, WITHDRAWAL_HOURS_TEXT } from "../utils/paymentInfo";
 import { MIN_WITHDRAWAL } from "../utils/earnings";
-import { getCombinedWithdrawableBalance, requestCombinedWithdrawal } from "../services/withdrawalRequests";
+import { getCombinedWithdrawableBalance, requestCombinedWithdrawal, WITHDRAWAL_FEE_RATE } from "../services/withdrawalRequests";
 import FormInput from "./FormInput";
 import { ErrorBox, SuccessBox } from "./MessageBox";
 import Overlay from "./Overlay";
@@ -187,6 +187,29 @@ export default function CombinedWithdrawModal({
           onChange={(e) => setAmount(e.target.value)}
           placeholder={`Min ₦${MIN_WITHDRAWAL.toLocaleString()}`}
         />
+        {/* Fee disclosure — shown BEFORE submission, not just discovered
+            after admin processes the request, since a surprise deduction
+            after the fact is a common source of support complaints. */}
+        {Number(amount) > 0 && (
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              marginTop: 8,
+              padding: "8px 10px",
+              background: "rgba(36,28,32,0.03)",
+              borderRadius: 8,
+              fontSize: 11.5,
+            }}
+          >
+            <span style={{ color: C.dim }}>
+              You'll receive (after {Math.round(WITHDRAWAL_FEE_RATE * 100)}% processing fee)
+            </span>
+            <span style={{ color: C.text, fontWeight: 700 }}>
+              ₦{Math.round(Number(amount) * (1 - WITHDRAWAL_FEE_RATE)).toLocaleString()}
+            </span>
+          </div>
+        )}
       </div>
       <div style={{ marginBottom: 14 }}>
         <label style={labelStyle}>Bank Name</label>

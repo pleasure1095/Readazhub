@@ -22,9 +22,10 @@ export const OPAY_DETAILS = {
   accountName: "REPLACE_ME_ACCOUNT_NAME",
 };
 
-// PLACEHOLDER — replace with this brand's own WhatsApp support/community
-// group link (do not reuse the Gadjiz group).
-export const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/REPLACE_ME";
+// WhatsApp support/community group link, used on the Dashboard welcome
+// banner, the first-login WelcomeModal, and the Settings "Contact
+// Support" link.
+export const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/JsP8DiC9zce4C2lYNHcfon?s=cl&p=a&ilr=1";
 
 // Withdrawal window (WAT, Nigeria, UTC+1, no DST):
 //   Monday - Saturday: 9:00 AM - 6:00 PM

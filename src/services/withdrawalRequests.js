@@ -17,6 +17,17 @@ const DEPOSITS_COLLECTION = "deposits";
 const CHECKINS_COLLECTION = "checkins";
 const USERS_COLLECTION = "users";
 
+// Withdrawal processing fee — 12% of the REQUESTED amount, taken off
+// what's actually paid out to the user, not off what's deducted from
+// their balance. Per the site owner's explicit confirmation: if a user
+// requests ₦10,000, their balance decreases by the full ₦10,000 (matching
+// what they saw and confirmed on screen), but admin only pays out
+// ₦8,800 — the fee is absorbed on the payout side, not added on top of
+// what the user's balance loses. Applies to the full combined request
+// amount regardless of which sources (VIP profit / referral / welcome /
+// check-in) it was drawn from.
+export const WITHDRAWAL_FEE_RATE = 0.12;
+
 function genRef() {
   return "GWD-" + Math.random().toString(36).toUpperCase().slice(2, 8) + "-" + Date.now().toString(36).toUpperCase().slice(-4);
 }
@@ -140,6 +151,13 @@ export async function requestCombinedWithdrawal({
 
   const ref = genRef();
   const newReferralLifetimeWithdrawn = (referralLifetimeWithdrawn || 0) + draw.referral;
+  // Fee is computed off the full REQUESTED amount, not off any single
+  // source within the breakdown — matches the confirmed design (user's
+  // balance loses the full `amount`, admin pays out `payoutAmount`).
+  // Rounded to the nearest naira since payouts are whole currency, not
+  // fractional kobo amounts.
+  const feeAmount = Math.round(amount * WITHDRAWAL_FEE_RATE);
+  const payoutAmount = amount - feeAmount;
 
   await runTransaction(db, async (transaction) => {
     // Re-read the user doc inside the transaction for referral/welcome —
@@ -196,6 +214,9 @@ export async function requestCombinedWithdrawal({
       userId,
       userName,
       amount,
+      feeRate: WITHDRAWAL_FEE_RATE,
+      feeAmount,
+      payoutAmount,
       bankDetails,
       breakdown: { ...draw, perInvestmentDraws },
       status: "pending",
@@ -225,16 +246,13 @@ export async function getAllWithdrawalRequests() {
  * withdraw flows), so marking paid is purely a status update reflecting
  * that the admin has sent the money outside the app.
  *
- * FIXED this session: this previously never called createNotification(),
- * so approving a withdrawal produced no event the user could see —
- * services/activityFeed.js builds "Recent Activity" entirely from
- * notifications plus deposit-approval events, and a paid withdrawal
- * matched neither, making it invisible even though the money had
- * genuinely gone out. The pending-request notification ("submitted —
- * awaiting processing") already existed; this adds the matching
- * completion notification.
+ * UPDATED this session: notification now references payoutAmount (the
+ * actual amount sent, after the 12% withdrawal fee) rather than the
+ * pre-fee requested amount — showing "paid ₦10,000" when the user
+ * actually received ₦8,800 would be actively misleading, not just
+ * imprecise.
  */
-export async function markCombinedWithdrawalPaid(requestId, userId, amount) {
+export async function markCombinedWithdrawalPaid(requestId, userId, payoutAmount) {
   await updateDoc(doc(db, WITHDRAWAL_REQUESTS_COLLECTION, requestId), {
     status: "paid",
     paidAt: Date.now(),
@@ -244,7 +262,7 @@ export async function markCombinedWithdrawalPaid(requestId, userId, amount) {
     await createNotification(
       userId,
       "withdrawal_paid",
-      `✅ Your withdrawal of ₦${(amount || 0).toLocaleString()} has been paid.`
+      `✅ Your withdrawal has been paid: ₦${(payoutAmount || 0).toLocaleString()}.`
     );
   }
 }

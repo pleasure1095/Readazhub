@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { C, buttonStyle, cardStyle } from "../styles/theme";
 import { VIPS, VIP_LIST } from "../utils/vipPlans";
-import { calculateInvestmentEarnings, getDaysEarning } from "../utils/earnings";
+import { calculateInvestmentEarnings, getDaysEarning, isEarningToday } from "../utils/earnings";
 import { isWithinWithdrawalHours, WHATSAPP_GROUP_LINK } from "../utils/paymentInfo";
 import { getUserDeposits } from "../services/deposits";
 import { getReviewStatus, countReviewedEarningDays } from "../services/reviews";
@@ -46,6 +46,7 @@ export default function DashboardPage() {
   const [deposits, setDeposits] = useState([]);
   const [activityEvents, setActivityEvents] = useState([]);
   const [completedReviewDays, setCompletedReviewDays] = useState([]);
+  const [todayDateString, setTodayDateString] = useState("");
   const [checkInBalance, setCheckInBalance] = useState(0);
   const [checkInLifetimeWithdrawn, setCheckInLifetimeWithdrawn] = useState(0);
   const [referralEarnings, setReferralEarnings] = useState({ lifetimeEarned: 0, withdrawableBalance: 0, level1Total: 0, level2Total: 0 });
@@ -65,6 +66,7 @@ export default function DashboardPage() {
       setActivityEvents(events);
       const reviewStatus = await getReviewStatus(user.uid);
       setCompletedReviewDays(reviewStatus.completedDays);
+      setTodayDateString(reviewStatus.today);
       // Check-in balance lives in its own Firestore collection, separate
       // from VIP investments/bonuses — without fetching it here, the
       // Dashboard's top-level "Withdrawable Profit" stat card would stay
@@ -173,6 +175,17 @@ export default function DashboardPage() {
   const totalAvailableEarnings = investments.reduce((s, i) => s + i.availableEarnings, 0);
   const totalWithdrawableProfit = investments.reduce((s, i) => s + i.withdrawableBalance, 0);
   const totalMissedEarnings = investments.reduce((s, i) => s + i.missedEarnings, 0);
+  // "Today's Earnings" — the sum of TODAY's dailyRate across every
+  // investment that is (a) past its 24h grace period AND (b) has today's
+  // reading task completed. Distinct from totalAvailableEarnings, which
+  // is a LIFETIME cumulative sum across every day ever earned. ₦0 if
+  // today's reading hasn't been completed yet, even if every previous
+  // day was read — matches the app's existing all-or-nothing daily
+  // reading gate (see utils/earnings.js isEarningToday for the exact
+  // rule this mirrors).
+  const totalTodayEarnings = investments.reduce((s, i) => {
+    return s + (isEarningToday(i.approvedAt, todayDateString, completedReviewDays, now) ? i.plan.daily : 0);
+  }, 0);
   // Live-computed (9%/2% two-level, recurring on actual daily earnings) —
   // NOT read from user.referralBonusTotal, which no longer exists as a
   // field. This is the WITHDRAWABLE portion (lifetime earned minus
@@ -262,14 +275,18 @@ export default function DashboardPage() {
       />
 
       {/* Balance & bonus overview — 4 "major" figures get real visual
-          weight up top (Total Earnings, Withdrawable Profit, Welcome
+          weight up top (Today's Earnings, Withdrawable Profit, Welcome
           Bonus, Referral Bonus). The full 8-stat auto-scrolling row now
           lives further down the page (see below), after the daily task
           widgets, since a first-time glance at 4 clear numbers matters
-          more here than the complete breakdown. */}
+          more here than the complete breakdown.
+          "Today's Earnings" replaces lifetime Total Earnings in this top
+          row — for a daily-task app, "what did I earn today" is the more
+          actionable, motivating number than a cumulative lifetime total,
+          which is still available in the full 8-stat scroller below. */}
       {(() => {
         const majorStats = [
-          { key: "totalEarnings", label: "Total Earnings", value: `₦${fmt(totalAvailableEarnings + checkInBalance)}`, color: C.lime },
+          { key: "todayEarnings", label: "Today's Earnings", value: `₦${fmt(totalTodayEarnings)}`, color: C.lime },
           { key: "withdrawable", label: "Withdrawable Profit", value: `₦${fmt(totalWithdrawableProfit + referralBonus + welcomeBonus + checkInBalance)}`, color: C.emerald },
           { key: "welcomeBonus", label: "Welcome Bonus", value: `₦${fmt(welcomeBonus)}`, color: C.purple },
           { key: "referralBonus", label: "Referral Bonus", value: `₦${fmt(referralBonus)}`, color: C.forest },
@@ -301,7 +318,8 @@ export default function DashboardPage() {
         const allStats = [
           { key: "totalInvestment", label: "Total Investment", value: `₦${fmt(totalInvested)}`, color: C.emerald },
           { key: "dailyEarnings", label: "Daily Earnings", value: `₦${fmt(totalDaily)}`, color: C.green },
-          { key: "totalEarnings", label: "Total Earnings", value: `₦${fmt(totalAvailableEarnings + checkInBalance)}`, color: C.lime },
+          { key: "todayEarnings", label: "Today's Earnings", value: `₦${fmt(totalTodayEarnings)}`, color: C.lime },
+          { key: "totalEarnings", label: "Lifetime Earnings", value: `₦${fmt(totalAvailableEarnings + checkInBalance)}`, color: C.lime },
           { key: "missed", label: "Missed (Unread)", value: `₦${fmt(totalMissedEarnings)}`, color: C.dim },
           { key: "referralBonus", label: "Referral Bonus", value: `₦${fmt(referralBonus)}`, color: C.forest },
           { key: "welcomeBonus", label: "Welcome Bonus", value: `₦${fmt(welcomeBonus)}`, color: C.purple },

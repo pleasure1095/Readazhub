@@ -55,7 +55,7 @@ export default function AdminWithdrawalsPage() {
     setOk("");
     setBusyId(req.id);
     try {
-      await markCombinedWithdrawalPaid(req.id);
+      await markCombinedWithdrawalPaid(req.id, req.userId, req.payoutAmount ?? req.amount);
       setOk("Withdrawal marked as paid.");
       await load();
     } catch (e) {
@@ -139,7 +139,7 @@ export default function AdminWithdrawalsPage() {
               <div key={req.id} style={{ ...cardStyle, border: `1px solid ${sc}`, padding: 14 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
                   <div style={{ fontSize: 13 }}>
-                    <strong style={{ color: "#F9F1E7" }}>{req.userName}</strong> — ₦{(req.amount || 0).toLocaleString()}
+                    <strong style={{ color: "#F9F1E7" }}>{req.userName}</strong> — requested ₦{(req.amount || 0).toLocaleString()}
                   </div>
                   {req.status === "pending" ? (
                     <span
@@ -172,6 +172,36 @@ export default function AdminWithdrawalsPage() {
                     </span>
                   )}
                 </div>
+                {/* Payout breakdown — shows what admin actually needs to
+                    send after the 12% withdrawal fee, separate from the
+                    full amount deducted from the user's balance above.
+                    Falls back to showing the full amount with no fee line
+                    for older requests submitted before this feature
+                    existed (payoutAmount/feeAmount won't be present on
+                    those documents). */}
+                {req.payoutAmount != null ? (
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      background: "rgba(46,204,113,0.08)",
+                      border: `1px solid ${C.green}30`,
+                      borderRadius: 8,
+                      padding: "8px 10px",
+                      marginBottom: 8,
+                    }}
+                  >
+                    <span style={{ fontSize: 11, color: C.dim }}>
+                      Pay out (after {Math.round((req.feeRate ?? 0.12) * 100)}% fee, −₦{(req.feeAmount || 0).toLocaleString()})
+                    </span>
+                    <span style={{ fontSize: 15, fontWeight: 800, color: C.green }}>₦{req.payoutAmount.toLocaleString()}</span>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 10.5, color: C.dim, marginBottom: 8 }}>
+                    (Submitted before the withdrawal fee feature — pay out full amount ₦{(req.amount || 0).toLocaleString()})
+                  </div>
+                )}
                 <div style={{ fontSize: 12, color: C.muted, marginBottom: 4 }}>
                   {req.bankDetails?.bank} · {req.bankDetails?.accNo} · {req.bankDetails?.accName}
                 </div>

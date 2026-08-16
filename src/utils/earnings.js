@@ -112,3 +112,30 @@ export function validateWithdrawalAmount(requestedAmount, withdrawableBalance) {
   }
   return { valid: true, reason: "" };
 }
+
+/**
+ * Whether a SPECIFIC investment is earning for TODAY specifically — used
+ * for the "Today's Earnings" dashboard figure, distinct from
+ * availableEarnings (which is a LIFETIME cumulative sum across every day
+ * ever earned, not just today).
+ *
+ * Two conditions must both be true:
+ * 1. The investment is past its 24h grace period (an investment approved
+ *    only a few hours ago isn't earning ANY day yet, including today).
+ * 2. Today's WAT calendar date is in the user's completedDays array —
+ *    i.e. they've read all of today's featured articles. This uses the
+ *    SAME reading-gate rule as every other day's earning (rule 5 in the
+ *    file-level comment above): no reading today = ₦0 today, even if
+ *    every previous day was read.
+ *
+ * Deliberately does NOT re-derive "today" internally — callers must pass
+ * the exact `todayDateString` and `completedDays` they already have from
+ * services/reviews.js getReviewStatus(), so this can never drift out of
+ * sync with the reading-gate logic that determines completedDays in the
+ * first place.
+ */
+export function isEarningToday(approvedAt, todayDateString, completedDays, now = Date.now()) {
+  const start = getEarningsStartTime(approvedAt);
+  if (now < start) return false;
+  return completedDays.includes(todayDateString);
+}

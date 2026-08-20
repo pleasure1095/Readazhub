@@ -1,7 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
-import { getStorage } from "firebase/storage";
 
 // Firebase config is read from environment variables so the same codebase
 // can point at different Firebase projects (dev/staging/prod) without
@@ -66,5 +65,4 @@ try {
 
 export const auth = getAuth(app);
 export const db = getFirestore(app);
-export const storage = getStorage(app);
 export default app;

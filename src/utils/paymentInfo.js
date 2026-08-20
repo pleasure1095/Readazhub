@@ -14,12 +14,13 @@ export const BANKS = [
 // PLACEHOLDER — replace with this brand's real bank account before real
 // users deposit. Deposit UI stays fully functional with these placeholder
 // values so the flow can be tested end-to-end before go-live.
+// Real payment account for READAZHUB deposits.
 // Variable name kept as OPAY_DETAILS for consistency with the original
-// codebase this was duplicated from (not necessarily an OPay account).
+// codebase this was duplicated from (not actually an OPay account).
 export const OPAY_DETAILS = {
-  bank: "REPLACE_ME_BANK_NAME",
-  accountNumber: "REPLACE_ME_ACCOUNT_NUMBER",
-  accountName: "REPLACE_ME_ACCOUNT_NAME",
+  bank: "Moniepoint MFB",
+  accountNumber: "6606928220",
+  accountName: "High 5ive Digital Enterprise",
 };
 
 // WhatsApp support/community group link, used on the Dashboard welcome

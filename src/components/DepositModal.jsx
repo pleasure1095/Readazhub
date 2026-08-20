@@ -53,9 +53,7 @@ function genNarrationCode() {
 export default function DepositModal({ user, onClose, onDone, initialPlanId }) {
   const [step, setStep] = useState(1);
   const [planId, setPlanId] = useState(initialPlanId || "vip1");
-  const [senderName, setSenderName] = useState("");
   const [amountPaid, setAmountPaid] = useState("");
-  const [proof, setProof] = useState("");
   const [txRef, setTxRef] = useState("");
   const [screenshotFile, setScreenshotFile] = useState(null);
   const [screenshotName, setScreenshotName] = useState("");
@@ -79,39 +77,43 @@ export default function DepositModal({ user, onClose, onDone, initialPlanId }) {
 
   async function submitProof() {
     setErr("");
-    if (!senderName.trim()) {
-      setErr("Enter the name used for the transfer.");
-      return;
-    }
     const numAmountPaid = Number(amountPaid);
     if (!numAmountPaid || numAmountPaid <= 0) {
       setErr("Enter the amount you paid.");
       return;
     }
+    // At least one form of verifiable proof required — a screenshot OR a
+    // transaction reference, not necessarily both. Sender name and the
+    // free-text description field were removed per the site owner's
+    // request to streamline the form to just the essentials.
+    if (!txRef.trim() && !screenshotFile) {
+      setErr("Please provide either a transaction reference or a payment screenshot.");
+      return;
+    }
 
     setBusy(true);
     try {
-      // Overall safety net: even with the screenshot upload's own 8s
+      // Overall safety net: even with the screenshot upload's own 10s
       // timeout (services/deposits.js), this races the whole submission
-      // against 15s so the button can never hang indefinitely for ANY
+      // against 18s so the button can never hang indefinitely for ANY
       // reason — a stalled Firestore write, a dropped connection, etc.
       // If it times out, the person sees a clear error and can retry,
       // instead of being stuck on "Submitting…" with no way forward.
+      // (Raised from 15s to 18s to comfortably cover the new upload
+      // path's compression step + 10s upload timeout combined.)
       const result = await Promise.race([
         submitDeposit({
           userId: user.uid,
           userName: user.name,
           userEmail: user.email,
           planId,
-          senderName,
           amountPaid: numAmountPaid,
-          proof,
           txRef,
           narrationCode,
           screenshotFile,
         }),
         new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("This is taking longer than expected. Please check your connection and try again.")), 15000)
+          setTimeout(() => reject(new Error("This is taking longer than expected. Please check your connection and try again.")), 18000)
         ),
       ]);
       setSavedRef(result.ref);
@@ -286,7 +288,7 @@ export default function DepositModal({ user, onClose, onDone, initialPlanId }) {
             Submit Proof
           </h2>
           <p style={{ fontSize: 13, color: C.muted, marginBottom: 16 }}>
-            Confirm your name and the amount you paid below.
+            Confirm the amount you paid, then provide a transaction reference or a screenshot as proof.
           </p>
           <div
             style={{
@@ -309,10 +311,6 @@ export default function DepositModal({ user, onClose, onDone, initialPlanId }) {
             </div>
           </div>
           <ErrorBox msg={err} />
-          <div style={{ marginBottom: 14 }}>
-            <label style={labelStyle}>Your Sender Name (as on OPay)</label>
-            <FormInput placeholder="e.g. Chioma Adebayo" value={senderName} maxLength={60} onChange={(e) => setSenderName(e.target.value)} />
-          </div>
           <div style={{ marginBottom: 18 }}>
             <label style={labelStyle}>Amount You Paid (₦)</label>
             <FormInput
@@ -337,24 +335,15 @@ export default function DepositModal({ user, onClose, onDone, initialPlanId }) {
             }}
           >
             <p style={{ fontSize: 11, color: C.dim, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>
-              Optional — speeds up approval
+              Proof of payment — at least one required
             </p>
           </div>
           <div style={{ marginBottom: 14 }}>
-            <label style={labelStyle}>Payment Description (optional)</label>
-            <textarea
-              value={proof}
-              onChange={(e) => setProof(e.target.value)}
-              placeholder="Time sent, any other details…"
-              style={{ ...inputStyle, minHeight: 70, resize: "vertical" }}
-            />
-          </div>
-          <div style={{ marginBottom: 14 }}>
-            <label style={labelStyle}>Transaction Reference / ID (optional)</label>
-            <FormInput placeholder="e.g. OPay TXN12345678" value={txRef} maxLength={60} onChange={(e) => setTxRef(e.target.value)} />
+            <label style={labelStyle}>Transaction Reference / ID</label>
+            <FormInput placeholder="e.g. TXN12345678" value={txRef} maxLength={60} onChange={(e) => setTxRef(e.target.value)} />
           </div>
           <div style={{ marginBottom: 18 }}>
-            <label style={labelStyle}>Upload Payment Screenshot (optional)</label>
+            <label style={labelStyle}>Upload Payment Screenshot</label>
             <input type="file" accept="image/*" onChange={handleFile} style={{ ...inputStyle, padding: "8px 10px" }} />
             {screenshotName && <div style={{ marginTop: 8, fontSize: 11, color: C.green }}>✓ {screenshotName} attached</div>}
           </div>

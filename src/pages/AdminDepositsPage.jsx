@@ -279,10 +279,6 @@ export default function AdminDepositsPage() {
                     <span style={{ color: C.dim }}>Ref: </span>
                     <span style={{ color: C.emerald }}>{dep.ref}</span>
                   </div>
-                  <div style={{ fontSize: 12, marginTop: 4 }}>
-                    <span style={{ color: C.dim }}>Sender: </span>
-                    <span style={{ color: C.text }}>{dep.senderName}</span>
-                  </div>
                   {dep.narrationCode && (
                     <div style={{ fontSize: 12, marginTop: 4 }}>
                       <span style={{ color: C.dim }}>Narration Code: </span>
@@ -307,7 +303,6 @@ export default function AdminDepositsPage() {
                       {dep.txRef}
                     </div>
                   )}
-                  {dep.proof && <div style={{ fontSize: 12, color: C.muted, marginTop: 6 }}>{dep.proof}</div>}
                   {dep.screenshotUrl && (
                     <div style={{ marginTop: 10 }}>
                       <img src={dep.screenshotUrl} alt="Payment proof" style={{ maxWidth: 200, borderRadius: 8, border: `1px solid ${C.border}` }} />

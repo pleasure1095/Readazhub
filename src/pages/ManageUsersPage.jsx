@@ -69,11 +69,7 @@ export default function ManageUsersPage() {
    * Direct (Level 1) referrals for a given user, computed client-side
    * from the SAME full user list already loaded for this page — no
    * extra Firestore reads needed, since listAllUsers() already returns
-   * every user's referrerCode. This intentionally shows Level 1 only
-   * (not the full 2-level network with live-computed earnings, which is
-   * services/referralEarnings.js — a heavier per-user computation meant
-   * for a single user's own Referrals page, not for rendering inline in
-   * a list of potentially many admin-viewed users at once).
+   * every user's referrerCode.
    */
   function getDirectReferrals(referralCode) {
     if (!referralCode) return [];

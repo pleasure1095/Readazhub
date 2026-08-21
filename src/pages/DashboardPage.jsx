@@ -18,7 +18,6 @@ import WelcomeBanner from "../components/WelcomeBanner";
 import DepositModal from "../components/DepositModal";
 import CombinedWithdrawModal from "../components/CombinedWithdrawModal";
 import { getActivityFeed } from "../services/activityFeed";
-import { getReferralWithdrawableBalance } from "../services/referralEarnings";
 
 function chipStyle(color) {
   return {
@@ -49,7 +48,6 @@ export default function DashboardPage() {
   const [todayDateString, setTodayDateString] = useState("");
   const [checkInBalance, setCheckInBalance] = useState(0);
   const [checkInLifetimeWithdrawn, setCheckInLifetimeWithdrawn] = useState(0);
-  const [referralEarnings, setReferralEarnings] = useState({ lifetimeEarned: 0, withdrawableBalance: 0, level1Total: 0, level2Total: 0 });
   const [loading, setLoading] = useState(true);
   const [showDeposit, setShowDeposit] = useState(false);
   const [preselectedPlanId, setPreselectedPlanId] = useState(null);
@@ -75,20 +73,10 @@ export default function DashboardPage() {
       const checkInStatus = await getCheckInStatus(user.uid);
       setCheckInBalance(checkInStatus.unlockedBalance || 0);
       setCheckInLifetimeWithdrawn(checkInStatus.lifetimeWithdrawn || 0);
-      // Referral bonus (9% Level 1 / 2% Level 2, recurring on actual daily
-      // earnings) is live-computed by walking the user's whole referral
-      // network's real deposit + review history — see
-      // services/referralEarnings.js. Not stored, so it must be
-      // recomputed on every load rather than read off the user profile.
-      const referralResult = await getReferralWithdrawableBalance(
-        user.referralCode,
-        user.referralLifetimeWithdrawn || 0
-      );
-      setReferralEarnings(referralResult);
-      // Also refresh the user profile — welcomeBonus and
-      // referralLifetimeWithdrawn can change from actions taken elsewhere
-      // (e.g. a withdrawal from another session), which this session
-      // wouldn't otherwise see until re-login.
+      // Referral bonus is now a ONE-TIME flat credit stored on the user
+      // profile (referralBonusTotal), applied the instant a referred
+      // user's deposit is approved. Nothing to live-compute — just
+      // refresh the user profile so any credit from elsewhere shows up.
       await refreshUser();
     } catch (e) {
       console.error("Failed to load deposits:", e);
@@ -186,11 +174,9 @@ export default function DashboardPage() {
   const totalTodayEarnings = investments.reduce((s, i) => {
     return s + (isEarningToday(i.approvedAt, todayDateString, completedReviewDays, now) ? i.plan.daily : 0);
   }, 0);
-  // Live-computed (9%/2% two-level, recurring on actual daily earnings) —
-  // NOT read from user.referralBonusTotal, which no longer exists as a
-  // field. This is the WITHDRAWABLE portion (lifetime earned minus
-  // already withdrawn), same shape as totalWithdrawableProfit above.
-  const referralBonus = referralEarnings.withdrawableBalance || 0;
+  // One-time flat credit (9%/2% two-level of deposit amount), stored on
+  // the user profile and spent down directly on withdrawal.
+  const referralBonus = user.referralBonusTotal || 0;
   const welcomeBonus = user.welcomeBonus || 0;
 
   const withinHours = isWithinWithdrawalHours();
@@ -499,7 +485,6 @@ export default function DashboardPage() {
           userName={user.name}
           investments={investments}
           referralWithdrawableBalance={referralBonus}
-          referralLifetimeWithdrawn={user.referralLifetimeWithdrawn || 0}
           welcomeBonus={welcomeBonus}
           checkInBalance={checkInBalance}
           checkInLifetimeWithdrawn={checkInLifetimeWithdrawn}

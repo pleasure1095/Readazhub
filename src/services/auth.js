@@ -101,14 +101,13 @@ export async function registerUser({ name, email, password, phone, refCode }) {
     referralCode,
     referrerCode,
     referrerOfReferrerCode,
-    // Referral bonus is now LIVE-COMPUTED (9% Level 1 / 2% Level 2 of
-    // each referred user's actual daily earnings, recurring for as long
-    // as their investment earns) — see services/referralEarnings.js.
-    // referralLifetimeWithdrawn is the ONLY stored field: a running
-    // counter of how much of that live-computed total has already been
-    // withdrawn, mirroring exactly how a VIP investment's own
-    // lifetimeWithdrawn works against its live-computed totalEarnings.
-    referralLifetimeWithdrawn: 0,
+    // Referral bonus is a ONE-TIME flat credit (9% Level 1 / 2% Level 2
+    // of the deposit amount), paid the instant a referred user's deposit
+    // is approved — see services/adminUsers.js creditReferralBonusIfEligible.
+    // referralBonusTotal accumulates those one-time credits; it's spent
+    // down (not recomputed) on withdrawal — see withdrawBonusBalance.
+    referralBonusTotal: 0,
+    rewardedDepositIds: [],
     // ₦500 welcome bonus, credited once at registration only — existing
     // users created before this feature don't have this field, which is
     // intentional (confirmed: no retroactive credit for pre-existing

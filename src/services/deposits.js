@@ -11,6 +11,7 @@ import {
 import { db } from "./firebase";
 import { VIPS } from "../utils/vipPlans";
 import { createNotification } from "./notifications";
+import { creditReferralBonusIfEligible } from "./adminUsers";
 
 const DEPOSITS_COLLECTION = "deposits";
 
@@ -227,11 +228,12 @@ export async function submitDeposit({ userId, userName, userEmail, planId, amoun
  * timestamp all earnings calculations key off (see utils/earnings.js —
  * earnings begin 24h after this moment, not after submission).
  *
- * Sends the user an in-app notification. Referral bonus crediting is no
- * longer triggered here — it's now a RECURRING, live-computed 9%/2%
- * (two-level) share of the referred user's actual daily earnings (see
- * services/referralEarnings.js), computed fresh whenever the referrer's
- * own Dashboard loads rather than credited once at approval time.
+ * Immediately credits a ONE-TIME flat referral bonus (9% level 1, 2%
+ * level 2 of the deposit amount) to the referrer(s), if any — see
+ * services/adminUsers.js creditReferralBonusIfEligible. This is the
+ * moment the referred user has paid for an active plan, so it's the
+ * moment the referral bonus is paid too.
+ *
  * deposit must include userId (pass the full deposit object from the
  * admin queue, not just the id).
  */
@@ -242,6 +244,8 @@ export async function approveDeposit(deposit, adminNote = "") {
     decidedAt: Date.now(),
     adminNote: adminNote.trim(),
   });
+
+  await creditReferralBonusIfEligible({ ...deposit, id: deposit.id });
 
   await createNotification(
     deposit.userId,

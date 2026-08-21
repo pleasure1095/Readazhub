@@ -44,14 +44,10 @@ function genRef() {
  * `withdrawableBalance` (as computed by utils/earnings.js), the same
  * shape DashboardPage.jsx already builds.
  *
- * `referralWithdrawableBalance` is the ALREADY-COMPUTED result of
- * services/referralEarnings.js getReferralWithdrawableBalance() — i.e.
- * live-computed lifetime referral earnings (9%/2% two-level) minus the
- * user's stored referralLifetimeWithdrawn. This function does not
- * recompute it, since that requires async Firestore reads across the
- * user's whole referral network — callers must compute it once (on
- * Dashboard load) and pass the resulting number in here, same as
- * `investments` is precomputed rather than fetched inside this function.
+ * `referralWithdrawableBalance` is simply the user's stored
+ * `referralBonusTotal` — a one-time flat bonus credited directly at
+ * deposit-approval time (see services/adminUsers.js
+ * creditReferralBonusIfEligible), spent down directly on withdrawal.
  */
 export function getCombinedWithdrawableBalance({ investments, referralWithdrawableBalance, welcomeBonus, checkInBalance }) {
   const vipProfit = investments.reduce((sum, inv) => sum + (inv.withdrawableBalance || 0), 0);
@@ -95,8 +91,7 @@ export async function requestCombinedWithdrawal({
   amount,
   bankDetails,
   investments, // [{ id: depositId, withdrawableBalance, lifetimeWithdrawn }, ...]
-  referralWithdrawableBalance, // precomputed via services/referralEarnings.js
-  referralLifetimeWithdrawn, // current stored counter, needed to compute the new value
+  referralWithdrawableBalance, // user's stored referralBonusTotal
   welcomeBonus,
   checkInBalance,
   checkInLifetimeWithdrawn,
@@ -150,7 +145,6 @@ export async function requestCombinedWithdrawal({
   }
 
   const ref = genRef();
-  const newReferralLifetimeWithdrawn = (referralLifetimeWithdrawn || 0) + draw.referral;
   // Fee is computed off the full REQUESTED amount, not off any single
   // source within the breakdown — matches the confirmed design (user's
   // balance loses the full `amount`, admin pays out `payoutAmount`).
@@ -163,34 +157,24 @@ export async function requestCombinedWithdrawal({
     // Re-read the user doc inside the transaction for referral/welcome —
     // these two are the only sources also writable elsewhere concurrently
     // (deposits/checkins are keyed per-document per-source already).
-    //
-    // NOTE on the referral re-check below: unlike welcomeBonus (a simple
-    // stored balance we can re-read and compare directly), referral
-    // "available balance" is LIVE-COMPUTED from the whole referral
-    // network (see services/referralEarnings.js) and can't be
-    // cheaply recomputed inside a transaction callback. Instead we
-    // re-read only the stored referralLifetimeWithdrawn counter and
-    // confirm it hasn't changed since this function computed `draw.referral`
-    // — if it has (e.g. a concurrent withdrawal from another session), we
-    // bail out and ask the user to retry rather than risk drawing against
-    // a stale live-computed total.
+    // Both are now simple stored balances, re-read and compared directly.
     const userRef = doc(db, USERS_COLLECTION, userId);
     const userSnap = await transaction.get(userRef);
     if (!userSnap.exists()) throw new Error("User not found.");
     const userData = userSnap.data();
     const currentWelcome = userData.welcomeBonus || 0;
-    const currentReferralLifetimeWithdrawn = userData.referralLifetimeWithdrawn || 0;
+    const currentReferralBonusTotal = userData.referralBonusTotal || 0;
 
     if (draw.welcome > currentWelcome) {
       throw new Error("Your balance changed — please refresh and try again.");
     }
-    if (currentReferralLifetimeWithdrawn !== (referralLifetimeWithdrawn || 0)) {
+    if (draw.referral > currentReferralBonusTotal) {
       throw new Error("Your referral balance changed — please refresh and try again.");
     }
 
     if (draw.referral > 0 || draw.welcome > 0) {
       transaction.update(userRef, {
-        referralLifetimeWithdrawn: newReferralLifetimeWithdrawn,
+        referralBonusTotal: currentReferralBonusTotal - draw.referral,
         welcomeBonus: currentWelcome - draw.welcome,
       });
     }
@@ -284,12 +268,7 @@ export async function rejectCombinedWithdrawal(request) {
       if (userSnap.exists()) {
         const userData = userSnap.data();
         transaction.update(userRef, {
-          // Reversing a referral draw means DECREASING the withdrawn
-          // counter (giving the live-computed balance room to show that
-          // amount as available again), not increasing a stored balance
-          // — the opposite direction from the old referralBonusTotal
-          // model, since referral earnings are no longer stored directly.
-          referralLifetimeWithdrawn: Math.max(0, (userData.referralLifetimeWithdrawn || 0) - breakdown.referral),
+          referralBonusTotal: (userData.referralBonusTotal || 0) + breakdown.referral,
           welcomeBonus: (userData.welcomeBonus || 0) + breakdown.welcome,
         });
       }

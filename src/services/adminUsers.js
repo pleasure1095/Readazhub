@@ -1,5 +1,6 @@
 import { collection, getDocs, doc, updateDoc, getDoc, runTransaction, query, where, orderBy } from "firebase/firestore";
 import { db } from "./firebase";
+import { REFERRAL_LEVEL_1_PCT, REFERRAL_LEVEL_2_PCT } from "../utils/referralPlans";
 
 const USERS_COLLECTION = "users";
 
@@ -36,33 +37,48 @@ export async function getUserByUid(uid) {
 }
 
 /**
- * REMOVED: creditReferralBonusIfEligible() used to be called here, crediting
- * a ONE-TIME flat referralBonusTotal bump (equal to the referred user's
- * planDaily) at the moment of their FIRST approved deposit, gated by a
- * firstVipRewarded flag to prevent double-payment.
- *
- * Referral bonus is now a RECURRING, live-computed 9%/2% (two-level) share
- * of each referred user's ACTUAL daily earnings — see
- * services/referralEarnings.js calculateReferralNetworkEarnings(). It is
- * computed fresh on every load directly from the referred users' real
- * deposit + review history, not credited/stored at approval time, so
- * there is nothing left for approveDeposit() to trigger here. The
- * `referralBonusTotal` field and `firstVipRewarded` flag are no longer
- * written to new user profiles (see services/auth.js) — existing accounts
- * that still carry old values from those fields are safe to ignore, as
- * nothing reads them anymore.
+ * Credits a ONE-TIME flat referral bonus, called from approveDeposit()
+ * the moment a referred user's deposit is approved (i.e. they pay for an
+ * active plan). Level 1 referrer gets 9% of the approved amount, Level 2
+ * (the Level-1 referrer's own referrer) gets 2%. Gated by
+ * `rewardedDepositIds` on the referred user's own doc so re-approval or
+ * any retry can never double-pay. Adds straight onto `referralBonusTotal`
+ * on the referrer's user doc, from which it's later withdrawable via
+ * withdrawBonusBalance below.
  */
+export async function creditReferralBonusIfEligible(deposit) {
+  const referredSnap = await getDoc(doc(db, USERS_COLLECTION, deposit.userId));
+  if (!referredSnap.exists()) return;
+  const referred = referredSnap.data();
+
+  const alreadyRewarded = (referred.rewardedDepositIds || []).includes(deposit.id);
+  if (alreadyRewarded) return;
+
+  const level1Code = referred.referrerCode;
+  const level2Code = referred.referrerOfReferrerCode;
+
+  async function bump(code, pct) {
+    if (!code) return;
+    const q = query(collection(db, USERS_COLLECTION), where("referralCode", "==", code));
+    const snap = await getDocs(q);
+    if (snap.empty) return;
+    const referrerDoc = snap.docs[0];
+    const current = referrerDoc.data().referralBonusTotal || 0;
+    await updateDoc(doc(db, USERS_COLLECTION, referrerDoc.id), {
+      referralBonusTotal: current + deposit.amount * pct,
+    });
+  }
+
+  await bump(level1Code, REFERRAL_LEVEL_1_PCT);
+  await bump(level2Code, REFERRAL_LEVEL_2_PCT);
+
+  await updateDoc(doc(db, USERS_COLLECTION, deposit.userId), {
+    rewardedDepositIds: [...(referred.rewardedDepositIds || []), deposit.id],
+  });
+}
 
 /**
- * ORPHANED — not called anywhere (superseded by the combined withdrawal
- * flow, services/withdrawalRequests.js, same as noted in the project
- * handoff for BonusWithdrawModal.jsx which was this function's only
- * caller). Left in place per the existing "orphaned but harmless" policy
- * for dead code in this codebase — BUT this one is no longer just inert,
- * it is now BROKEN if ever called: it reads/writes `referralBonusTotal`,
- * a field that new user profiles no longer have (see services/auth.js —
- * referral bonus is now live-computed, not stored). Do not wire this back
- * up without first rewriting it against services/referralEarnings.js.
+ * Withdraws from the combined bonus balance (referral + welcome bonus).
  */
 export async function withdrawBonusBalance(uid, amount) {
   const userRef = doc(db, USERS_COLLECTION, uid);

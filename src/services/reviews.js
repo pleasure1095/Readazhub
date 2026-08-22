@@ -1,6 +1,5 @@
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "./firebase";
-import { getEarningsStartTime } from "../utils/earnings";
 import { getTodaysArticles } from "../utils/articles";
 
 const REVIEWS_COLLECTION = "reviews";
@@ -66,7 +65,7 @@ export async function getReviewStatus(userId) {
   const now = Date.now();
 
   if (!snap.exists()) {
-    return { completedDays: [], readArticleIds: [], today, todaysArticles, lastRatingAt: null, cooldownActive: false, cooldownEndsAt: null };
+    return { completedDays: [], completedDayTimestamps: {}, readArticleIds: [], today, todaysArticles, lastRatingAt: null, cooldownActive: false, cooldownEndsAt: null };
   }
 
   const data = snap.data();
@@ -77,6 +76,12 @@ export async function getReviewStatus(userId) {
 
   return {
     completedDays: data.completedDays || [],
+    // Per-day completion timestamp — WAT date string -> the exact
+    // moment the user finished reading ALL of that day's articles.
+    // This is what the 24h-per-day maturity timer is measured from
+    // (see utils/earnings.js), distinct from `today` (calendar date,
+    // used only for the reading-gate/which-articles-are-shown logic).
+    completedDayTimestamps: data.completedDayTimestamps || {},
     readArticleIds,
     today,
     todaysArticles,
@@ -130,12 +135,27 @@ export async function markArticleRead(userId, articleId) {
     : status.completedDays;
 
   const now = Date.now();
+
+  // Stamps the exact moment TODAY's reading was completed. This is now
+  // the anchor for that day's earnings maturity: per the site owner,
+  // each day's earning becomes withdrawable 24h after the user actually
+  // completed that day's task — NOT 24h after deposit approval. Every
+  // completed day gets its own independent timestamp/timer, keyed by
+  // WAT date string so it survives across investments (the task is
+  // shared across all of a user's VIP plans, not per-investment).
+  // Only written once per day (first completion), matching completedDays
+  // semantics — re-completing an already-completed day is a no-op here.
+  const updatedCompletedDayTimestamps = allRead && !(status.today in status.completedDayTimestamps)
+    ? { ...status.completedDayTimestamps, [status.today]: now }
+    : status.completedDayTimestamps;
+
   // Only stamp lastRatingAt (which starts the 24h cooldown) once the
   // full set is complete — reading only 1 or 2 of 3 articles should NOT
   // start the clock, since the user still needs to read the remaining
   // articles in this same sitting.
   const docUpdate = {
     completedDays: updatedCompletedDays,
+    completedDayTimestamps: updatedCompletedDayTimestamps,
     readArticleIds: updatedReadIds,
     lastRatingDate: status.today,
   };
@@ -148,6 +168,7 @@ export async function markArticleRead(userId, articleId) {
   const cooldownEndsAt = allRead ? now + RATING_COOLDOWN_MS : status.cooldownEndsAt;
   return {
     completedDays: updatedCompletedDays,
+    completedDayTimestamps: updatedCompletedDayTimestamps,
     readArticleIds: updatedReadIds,
     today: status.today,
     todaysArticles: status.todaysArticles,
@@ -184,11 +205,23 @@ export async function markArticleRead(userId, articleId) {
  * they used for getDaysEarning(), not its result.
  */
 export function countReviewedEarningDays(approvedAt, now, completedDays) {
-  const earningsStart = getEarningsStartTime(approvedAt);
-  if (now < earningsStart) return 0;
-
+  // CHANGED this session: earnings maturity moved from "24h after
+  // deposit approval, then daily thereafter" to "24h after the user
+  // completed THAT SPECIFIC day's reading task" — a per-day rolling
+  // timer, confirmed by the site owner (see utils/earnings.js file
+  // header). Reading can now start the SAME WAT day the deposit is
+  // approved — there's no more up-front 24h grace period before the
+  // task even becomes eligible. So the day-range walked here starts
+  // from the investment's approval date directly (not
+  // getEarningsStartTime(approvedAt), which no longer applies to this
+  // count). This function still only answers "was this WAT day
+  // reviewed" — the actual 24h-per-day MATURITY split (matured vs
+  // still-maturing ₦ amounts) is computed separately in
+  // utils/earnings.js:calculateInvestmentEarnings from
+  // completedDayTimestamps, since that requires per-day timestamps this
+  // function (which only sees date strings) doesn't have.
   const completedSet = new Set(completedDays.map(watDateStringToDayIndex));
-  const startDayIndex = watDateStringToDayIndex(getWATDateString(earningsStart));
+  const startDayIndex = watDateStringToDayIndex(getWATDateString(approvedAt));
   const todayDayIndex = watDateStringToDayIndex(getWATDateString(now));
 
   let count = 0;
@@ -196,4 +229,18 @@ export function countReviewedEarningDays(approvedAt, now, completedDays) {
     if (completedSet.has(idx)) count++;
   }
   return count;
+}
+
+/**
+ * Returns the actual WAT date strings (a subset of completedDays) that
+ * count toward a specific investment — i.e. reviewed dates falling on or
+ * after that investment's approval date. Added this session alongside
+ * the per-day 24h maturity model: utils/earnings.js needs the actual
+ * date strings (not just a count) so it can look each one up in
+ * completedDayTimestamps and determine which have finished their
+ * individual 24h maturity timer and which are still maturing.
+ */
+export function getReviewedDatesForInvestment(approvedAt, completedDays) {
+  const startDayIndex = watDateStringToDayIndex(getWATDateString(approvedAt));
+  return completedDays.filter((dateStr) => watDateStringToDayIndex(dateStr) >= startDayIndex);
 }

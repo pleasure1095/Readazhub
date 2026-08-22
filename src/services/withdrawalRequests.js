@@ -164,6 +164,8 @@ export async function requestCombinedWithdrawal({
     const userData = userSnap.data();
     const currentWelcome = userData.welcomeBonus || 0;
     const currentReferralBonusTotal = userData.referralBonusTotal || 0;
+    const currentReferralLifetimeWithdrawn = userData.referralLifetimeWithdrawn || 0;
+    const currentWelcomeLifetimeWithdrawn = userData.welcomeLifetimeWithdrawn || 0;
 
     if (draw.welcome > currentWelcome) {
       throw new Error("Your balance changed — please refresh and try again.");
@@ -176,6 +178,13 @@ export async function requestCombinedWithdrawal({
       transaction.update(userRef, {
         referralBonusTotal: currentReferralBonusTotal - draw.referral,
         welcomeBonus: currentWelcome - draw.welcome,
+        // Lifetime-withdrawn counters for referral/welcome, added so the
+        // Admin Earnings Overview total can include these payouts (see
+        // AdminEarningsPage.jsx) — mirrors the same "deduct from balance
+        // AND grow a lifetime counter, both at request time" pattern
+        // already used for VIP deposits and check-in above/below.
+        referralLifetimeWithdrawn: currentReferralLifetimeWithdrawn + draw.referral,
+        welcomeLifetimeWithdrawn: currentWelcomeLifetimeWithdrawn + draw.welcome,
       });
     }
 
@@ -288,6 +297,12 @@ export async function rejectCombinedWithdrawal(request) {
       transaction.update(userRef, {
         referralBonusTotal: (userData.referralBonusTotal || 0) + breakdown.referral,
         welcomeBonus: (userData.welcomeBonus || 0) + breakdown.welcome,
+        // Refund reverses the lifetime-withdrawn counters set at request
+        // time (see requestWithdrawal above) — clamped at 0 as a safety
+        // floor, matching the same Math.max(0, ...) pattern used for the
+        // checkin/deposit lifetimeWithdrawn refunds just below.
+        referralLifetimeWithdrawn: Math.max(0, (userData.referralLifetimeWithdrawn || 0) - breakdown.referral),
+        welcomeLifetimeWithdrawn: Math.max(0, (userData.welcomeLifetimeWithdrawn || 0) - breakdown.welcome),
       });
     }
 

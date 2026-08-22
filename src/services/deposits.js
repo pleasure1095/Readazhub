@@ -3,6 +3,7 @@ import {
   doc,
   addDoc,
   updateDoc,
+  getDoc,
   getDocs,
   query,
   where,
@@ -193,7 +194,7 @@ export async function getAllDeposits() {
  * provided before calling this, streamlined from an earlier version that
  * also collected a sender name and free-text description.
  */
-export async function submitDeposit({ userId, userName, userEmail, planId, amountPaid, txRef, narrationCode, screenshotFile }) {
+export async function submitDeposit({ userId, userName, userEmail, planId, amountPaid, txRef, narrationCode, screenshotFile, upgradeFromDepositId, upgradeDiffAmount }) {
   const plan = VIPS[planId];
   if (!plan) throw new Error("Invalid VIP plan selected.");
   if (!amountPaid || amountPaid <= 0) throw new Error("Enter the amount you paid.");
@@ -217,6 +218,19 @@ export async function submitDeposit({ userId, userName, userEmail, planId, amoun
     status: "pending",
     lifetimeWithdrawn: 0,
     submittedAt: Date.now(),
+    // When set, this deposit is a MIGRATION/UPGRADE of an existing active
+    // plan rather than a brand-new, separate investment. On approval
+    // (see approveDeposit below), the referenced old deposit is closed
+    // out (status: "superseded") instead of both plans running side by
+    // side — this is what makes an upgrade different from just buying a
+    // second plan.
+    upgradeFromDepositId: upgradeFromDepositId || null,
+    // The DIFFERENCE the user was expected to pay for this upgrade
+    // (new tier amount − old tier amount), stored at submission time so
+    // the admin queue can show the correct expected amount without
+    // needing to look up the old deposit. null for a normal, non-upgrade
+    // deposit, where `amount` itself is already the expected figure.
+    upgradeDiffAmount: upgradeFromDepositId ? (upgradeDiffAmount ?? null) : null,
   };
 
   const docRef = await addDoc(collection(db, DEPOSITS_COLLECTION), depositData);
@@ -238,9 +252,32 @@ export async function submitDeposit({ userId, userName, userEmail, planId, amoun
  * admin queue, not just the id).
  */
 export async function approveDeposit(deposit, adminNote = "") {
+  // Upgrade/migration case: carry over the OLD plan's approvedAt so no
+  // earning days already accrued are lost (a user who's been earning for
+  // 10 days doesn't get reset to day 0 just because they upgraded tier),
+  // then close out the old deposit so it stops being counted as a
+  // separate active investment. lifetimeWithdrawn deliberately does NOT
+  // carry over — the new tier's balance starts fresh at 0, per explicit
+  // decision: an upgrade is a clean new earnings baseline, not a
+  // continuation of the old plan's withdrawal history.
+  let approvedAt = Date.now();
+  if (deposit.upgradeFromDepositId) {
+    const oldRef = doc(db, DEPOSITS_COLLECTION, deposit.upgradeFromDepositId);
+    const oldSnap = await getDoc(oldRef);
+    if (oldSnap.exists()) {
+      const oldData = oldSnap.data();
+      approvedAt = oldData.approvedAt || approvedAt;
+      await updateDoc(oldRef, {
+        status: "superseded",
+        supersededAt: Date.now(),
+        supersededByDepositId: deposit.id,
+      });
+    }
+  }
+
   await updateDoc(doc(db, DEPOSITS_COLLECTION, deposit.id), {
     status: "approved",
-    approvedAt: Date.now(),
+    approvedAt,
     decidedAt: Date.now(),
     adminNote: adminNote.trim(),
   });
@@ -250,7 +287,9 @@ export async function approveDeposit(deposit, adminNote = "") {
   await createNotification(
     deposit.userId,
     "approved",
-    `Your deposit of ₦${(deposit.amount || 0).toLocaleString()} (${deposit.planLabel}) has been approved and is now active. Earnings begin in 24 hours.`
+    deposit.upgradeFromDepositId
+      ? `Your upgrade to ${deposit.planLabel} has been approved and is now active.`
+      : `Your deposit of ₦${(deposit.amount || 0).toLocaleString()} (${deposit.planLabel}) has been approved and is now active. Earnings begin in 24 hours.`
   );
 }
 

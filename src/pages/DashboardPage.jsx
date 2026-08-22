@@ -2,10 +2,10 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { C, buttonStyle, cardStyle } from "../styles/theme";
 import { VIPS, VIP_LIST } from "../utils/vipPlans";
-import { calculateInvestmentEarnings, getDaysEarning, isEarningToday } from "../utils/earnings";
+import { calculateInvestmentEarnings, isEarningToday } from "../utils/earnings";
 import { isWithinWithdrawalHours, WHATSAPP_GROUP_LINK } from "../utils/paymentInfo";
 import { getUserDeposits } from "../services/deposits";
-import { getReviewStatus, countReviewedEarningDays } from "../services/reviews";
+import { getReviewStatus, countReviewedEarningDays, getReviewedDatesForInvestment } from "../services/reviews";
 import { getCheckInStatus } from "../services/checkins";
 import PlanCarousel from "../components/PlanCarousel";
 import EarnersTicker from "../components/EarnersTicker";
@@ -45,6 +45,7 @@ export default function DashboardPage() {
   const [deposits, setDeposits] = useState([]);
   const [activityEvents, setActivityEvents] = useState([]);
   const [completedReviewDays, setCompletedReviewDays] = useState([]);
+  const [completedDayTimestamps, setCompletedDayTimestamps] = useState({});
   const [todayDateString, setTodayDateString] = useState("");
   const [checkInBalance, setCheckInBalance] = useState(0);
   const [checkInLifetimeWithdrawn, setCheckInLifetimeWithdrawn] = useState(0);
@@ -64,6 +65,7 @@ export default function DashboardPage() {
       setActivityEvents(events);
       const reviewStatus = await getReviewStatus(user.uid);
       setCompletedReviewDays(reviewStatus.completedDays);
+      setCompletedDayTimestamps(reviewStatus.completedDayTimestamps);
       setTodayDateString(reviewStatus.today);
       // Check-in balance lives in its own Firestore collection, separate
       // from VIP investments/bonuses — without fetching it here, the
@@ -142,19 +144,28 @@ export default function DashboardPage() {
 
   // Enrich each approved deposit with live earnings figures using the
   // shared calculation utility — the single source of truth for the
-  // 24h-delay, capital-locked, profit-only-withdrawal, and daily-review
-  // gate rules. A single `now` is captured once and reused for both
-  // getDaysEarning() and countReviewedEarningDays() so they're always
-  // evaluated against the same instant — passing daysEarning's RESULT
-  // into countReviewedEarningDays() instead (an earlier version of this
-  // code did) caused reviewed days to go undetected, since elapsed
-  // 24-hour periods and elapsed WAT calendar days drift apart depending
-  // on what time of day a deposit was approved.
+  // capital-locked, profit-only-withdrawal, daily-review-gate, and
+  // (as of this session) per-day 24h maturity rules. A single `now` is
+  // captured once and reused across countReviewedEarningDays() and
+  // calculateInvestmentEarnings() so they're always evaluated against
+  // the same instant. reviewedDatesForInvestment + completedDayTimestamps
+  // are passed through so calculateInvestmentEarnings can split each
+  // investment's earned days into matured (withdrawable) vs
+  // still-maturing (task done, 24h timer not yet finished).
   const now = Date.now();
   const investments = approved.map((d) => {
     const plan = VIPS[d.planId] || { label: d.planLabel, daily: d.planDaily, color: C.emerald };
     const reviewedDayCount = countReviewedEarningDays(d.approvedAt, now, completedReviewDays);
-    const calc = calculateInvestmentEarnings(d.planDaily, d.approvedAt, d.lifetimeWithdrawn || 0, reviewedDayCount, now);
+    const reviewedDatesForInvestment = getReviewedDatesForInvestment(d.approvedAt, completedReviewDays);
+    const calc = calculateInvestmentEarnings(
+      d.planDaily,
+      d.approvedAt,
+      d.lifetimeWithdrawn || 0,
+      reviewedDayCount,
+      now,
+      reviewedDatesForInvestment,
+      completedDayTimestamps
+    );
     return { ...d, plan, ...calc };
   });
 
@@ -162,15 +173,22 @@ export default function DashboardPage() {
   const totalDaily = investments.reduce((s, i) => s + i.plan.daily, 0);
   const totalAvailableEarnings = investments.reduce((s, i) => s + i.availableEarnings, 0);
   const totalWithdrawableProfit = investments.reduce((s, i) => s + i.withdrawableBalance, 0);
+  // Sum of earnings that have been EARNED (task completed) but haven't
+  // finished their individual 24h maturity timer yet — shown separately
+  // from totalWithdrawableProfit so users can see what's coming without
+  // mistaking it for money they can withdraw right now.
+  const totalMaturingProfit = investments.reduce((s, i) => s + i.maturingEarnings, 0);
   const totalMissedEarnings = investments.reduce((s, i) => s + i.missedEarnings, 0);
   // "Today's Earnings" — the sum of TODAY's dailyRate across every
-  // investment that is (a) past its 24h grace period AND (b) has today's
-  // reading task completed. Distinct from totalAvailableEarnings, which
-  // is a LIFETIME cumulative sum across every day ever earned. ₦0 if
-  // today's reading hasn't been completed yet, even if every previous
-  // day was read — matches the app's existing all-or-nothing daily
-  // reading gate (see utils/earnings.js isEarningToday for the exact
-  // rule this mirrors).
+  // investment that has today's reading task completed. Distinct from
+  // totalAvailableEarnings, which is a LIFETIME cumulative sum across
+  // every day ever earned. ₦0 if today's reading hasn't been completed
+  // yet, even if every previous day was read — matches the app's
+  // existing all-or-nothing daily reading gate (see utils/earnings.js
+  // isEarningToday for the exact rule this mirrors). Note this is
+  // "earned today", not "withdrawable today" — today's amount still
+  // needs its own 24h maturity window before it moves from maturing to
+  // withdrawable (see maturingEarnings/withdrawableBalance below).
   const totalTodayEarnings = investments.reduce((s, i) => {
     return s + (isEarningToday(i.approvedAt, todayDateString, completedReviewDays, now) ? i.plan.daily : 0);
   }, 0);
@@ -274,6 +292,10 @@ export default function DashboardPage() {
         const majorStats = [
           { key: "todayEarnings", label: "Today's Earnings", value: `₦${fmt(totalTodayEarnings)}`, color: C.lime },
           { key: "withdrawable", label: "Withdrawable Profit", value: `₦${fmt(totalWithdrawableProfit + referralBonus + welcomeBonus + checkInBalance)}`, color: C.emerald },
+          // Earned (task completed) but still inside its 24h per-day
+          // maturity window — shown separately so it's never mistaken
+          // for money that's withdrawable right now.
+          { key: "maturing", label: "Maturing (24h)", value: `₦${fmt(totalMaturingProfit)}`, color: C.gold || C.purple },
           { key: "welcomeBonus", label: "Welcome Bonus", value: `₦${fmt(welcomeBonus)}`, color: C.purple },
           { key: "referralBonus", label: "Referral Bonus", value: `₦${fmt(referralBonus)}`, color: C.forest },
         ];
@@ -306,6 +328,7 @@ export default function DashboardPage() {
           { key: "dailyEarnings", label: "Daily Earnings", value: `₦${fmt(totalDaily)}`, color: C.green },
           { key: "todayEarnings", label: "Today's Earnings", value: `₦${fmt(totalTodayEarnings)}`, color: C.lime },
           { key: "totalEarnings", label: "Lifetime Earnings", value: `₦${fmt(totalAvailableEarnings + checkInBalance)}`, color: C.lime },
+          { key: "maturing", label: "Maturing (24h)", value: `₦${fmt(totalMaturingProfit)}`, color: C.gold || C.purple },
           { key: "missed", label: "Missed (Unread)", value: `₦${fmt(totalMissedEarnings)}`, color: C.dim },
           { key: "referralBonus", label: "Referral Bonus", value: `₦${fmt(referralBonus)}`, color: C.forest },
           { key: "welcomeBonus", label: "Welcome Bonus", value: `₦${fmt(welcomeBonus)}`, color: C.purple },
@@ -410,9 +433,10 @@ export default function DashboardPage() {
                   <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>
                     Invested ₦{(inv.amount || 0).toLocaleString()} (locked) · Approved {fmtDate(inv.approvedAt)}
                   </div>
-                  {inv.stillInGracePeriod && (
-                    <div style={{ fontSize: 11, color: C.dim, marginTop: 4 }}>
-                      Earnings begin 24h after approval
+                  {inv.maturingEarnings > 0 && (
+                    <div style={{ fontSize: 11, color: C.gold || C.purple, marginTop: 4, fontWeight: 600 }}>
+                      ₦{fmt(inv.maturingEarnings)} maturing
+                      {inv.nextMaturityAt ? ` · next unlock ${fmtDate(inv.nextMaturityAt)} ${new Date(inv.nextMaturityAt).toLocaleTimeString("en-NG", { hour: "numeric", minute: "2-digit" })}` : ""}
                     </div>
                   )}
                   {inv.missedEarnings > 0 && (
@@ -422,8 +446,13 @@ export default function DashboardPage() {
                   )}
                 </div>
                 <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: 24, fontWeight: 800, color: C.green }}>₦{fmt(inv.availableEarnings)}</div>
-                  <div style={{ fontSize: 11, color: C.dim }}>earned so far</div>
+                  <div style={{ fontSize: 24, fontWeight: 800, color: C.green }}>₦{fmt(inv.withdrawableBalance)}</div>
+                  <div style={{ fontSize: 11, color: C.dim }}>withdrawable now</div>
+                  {inv.maturingEarnings > 0 && (
+                    <div style={{ fontSize: 12, fontWeight: 700, color: C.gold || C.purple, marginTop: 2 }}>
+                      +₦{fmt(inv.maturingEarnings)} maturing
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

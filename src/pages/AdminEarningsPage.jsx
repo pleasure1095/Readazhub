@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { C, buttonStyle, cardStyle } from "../styles/theme";
 import { getAllDeposits } from "../services/deposits";
-import { getReviewStatus, countReviewedEarningDays } from "../services/reviews";
-import { calculateInvestmentEarnings, getDaysEarning } from "../utils/earnings";
+import { getReviewStatus, countReviewedEarningDays, getReviewedDatesForInvestment } from "../services/reviews";
+import { calculateInvestmentEarnings } from "../utils/earnings";
 import { getAllWithdrawalRequests, markCombinedWithdrawalPaid, rejectCombinedWithdrawal } from "../services/withdrawalRequests";
 import FormInput from "../components/FormInput";
 
@@ -78,16 +78,18 @@ export default function AdminEarningsPage() {
       }
 
       // Fetch each unique user's review record once, not once per investment.
+      // Stores the full status (not just completedDays) since the per-day
+      // 24h maturity split also needs completedDayTimestamps.
       const uniqueUserIds = [...new Set(approved.map((d) => d.userId))];
       const reviewsByUser = new Map();
       await Promise.all(
         uniqueUserIds.map(async (uid) => {
           try {
             const status = await getReviewStatus(uid);
-            reviewsByUser.set(uid, status.completedDays);
+            reviewsByUser.set(uid, { completedDays: status.completedDays, completedDayTimestamps: status.completedDayTimestamps });
           } catch (e) {
             console.error(`Failed to load reviews for user ${uid}:`, e);
-            reviewsByUser.set(uid, []);
+            reviewsByUser.set(uid, { completedDays: [], completedDayTimestamps: {} });
           }
         })
       );
@@ -104,18 +106,21 @@ export default function AdminEarningsPage() {
       // A single `now` is captured once and reused across the whole map
       // (and for calculateInvestmentEarnings below), so
       // countReviewedEarningDays() is always evaluated against the same
-      // instant getDaysEarning-equivalent logic uses internally —
-      // previously this passed daysEarning's RESULT (elapsed 24-hour
-      // periods) into countReviewedEarningDays where it was treated as
-      // elapsed calendar days, which drift apart depending on what time
-      // of day a deposit was approved, causing genuinely-reviewed days to
-      // go undetected (this is what the site owner reported: "users keep
-      // reviewing but it doesn't reflect here").
+      // instant as the earnings calc.
       const now = Date.now();
       const enriched = approved.map((d) => {
-        const completedDays = reviewsByUser.get(d.userId) || [];
+        const { completedDays = [], completedDayTimestamps = {} } = reviewsByUser.get(d.userId) || {};
         const reviewedDayCount = countReviewedEarningDays(d.approvedAt, now, completedDays);
-        const calc = calculateInvestmentEarnings(d.planDaily, d.approvedAt, d.lifetimeWithdrawn || 0, reviewedDayCount, now);
+        const reviewedDatesForInvestment = getReviewedDatesForInvestment(d.approvedAt, completedDays);
+        const calc = calculateInvestmentEarnings(
+          d.planDaily,
+          d.approvedAt,
+          d.lifetimeWithdrawn || 0,
+          reviewedDayCount,
+          now,
+          reviewedDatesForInvestment,
+          completedDayTimestamps
+        );
         return { ...d, ...calc, reviewedDayCount };
       });
 
@@ -172,7 +177,11 @@ export default function AdminEarningsPage() {
     filtered = filtered.filter((i) => i.userName?.toLowerCase().includes(q) || i.userEmail?.toLowerCase().includes(q));
   }
   if (filter === "has_balance") filtered = filtered.filter((i) => i.withdrawableBalance > 0);
-  if (filter === "grace") filtered = filtered.filter((i) => i.stillInGracePeriod);
+  // "grace" filter renamed in meaning: there's no more single up-front
+  // grace period per investment (see utils/earnings.js) — this now
+  // shows investments that currently have earned-but-still-maturing
+  // money sitting in its 24h per-day window.
+  if (filter === "grace") filtered = filtered.filter((i) => i.maturingEarnings > 0);
   if (filter === "pending_withdrawal") {
     const pendingUserIds = new Set(withdrawalRequests.map((r) => r.userId));
     filtered = filtered.filter((i) => pendingUserIds.has(i.userId));
@@ -278,7 +287,7 @@ export default function AdminEarningsPage() {
         {[
           { key: "all", label: `All (${investments.length})` },
           { key: "has_balance", label: "Has withdrawable balance" },
-          { key: "grace", label: "Still in 24h grace period" },
+          { key: "grace", label: "Has earnings maturing (24h)" },
           { key: "pending_withdrawal", label: `Has pending withdrawal (${withdrawalRequests.length})` },
         ].map((f) => (
           <button key={f.key} onClick={() => setFilter(f.key)} style={{ ...buttonStyle(filter === f.key ? "gold" : "ghost"), padding: "7px 14px", fontSize: 12 }}>
@@ -300,11 +309,12 @@ export default function AdminEarningsPage() {
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
                     <span style={{ fontSize: 15, color: C.text, fontWeight: 600 }}>{inv.userName}</span>
                     <span style={chipStyle(C.emerald)}>{inv.planLabel}</span>
-                    {inv.stillInGracePeriod && <span style={chipStyle(C.dim)}>GRACE PERIOD</span>}
+                    {inv.maturingEarnings > 0 && <span style={chipStyle(C.dim)}>₦{fmt(inv.maturingEarnings)} MATURING</span>}
                   </div>
                   <div style={{ fontSize: 12, color: C.muted }}>{inv.userEmail}</div>
                   <div style={{ fontSize: 11, color: C.dim, marginTop: 4 }}>
-                    Approved {fmtDate(inv.approvedAt)} · Earnings started {fmtDate(inv.earningsStartTime)}
+                    Approved {fmtDate(inv.approvedAt)}
+                    {inv.nextMaturityAt ? ` · next unlock ${fmtDate(inv.nextMaturityAt)}` : ""}
                   </div>
                 </div>
                 <div style={{ textAlign: "right" }}>

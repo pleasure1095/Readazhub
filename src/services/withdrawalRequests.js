@@ -262,41 +262,53 @@ export async function rejectCombinedWithdrawal(request) {
   const { userId, breakdown } = request;
 
   await runTransaction(db, async (transaction) => {
-    if (breakdown.referral > 0 || breakdown.welcome > 0) {
-      const userRef = doc(db, USERS_COLLECTION, userId);
-      const userSnap = await transaction.get(userRef);
-      if (userSnap.exists()) {
-        const userData = userSnap.data();
-        transaction.update(userRef, {
-          referralBonusTotal: (userData.referralBonusTotal || 0) + breakdown.referral,
-          welcomeBonus: (userData.welcomeBonus || 0) + breakdown.welcome,
-        });
-      }
+    // Firestore transactions require every read to happen before any
+    // write — mixing get() and update() calls (as the previous version
+    // did, one balance at a time) throws at runtime the moment a second
+    // read follows a write. All reads are gathered first here, then all
+    // writes are applied, so this works regardless of how many balances
+    // a given request touches.
+    const userRef = breakdown.referral > 0 || breakdown.welcome > 0 ? doc(db, USERS_COLLECTION, userId) : null;
+    const userSnap = userRef ? await transaction.get(userRef) : null;
+
+    const checkinRef = breakdown.checkIn > 0 ? doc(db, CHECKINS_COLLECTION, userId) : null;
+    const checkinSnap = checkinRef ? await transaction.get(checkinRef) : null;
+
+    const depositRefs = breakdown.vipProfit > 0 && breakdown.perInvestmentDraws
+      ? breakdown.perInvestmentDraws.map((d) => doc(db, DEPOSITS_COLLECTION, d.depositId))
+      : [];
+    const depositSnaps = [];
+    for (const ref of depositRefs) {
+      depositSnaps.push(await transaction.get(ref));
     }
 
-    if (breakdown.checkIn > 0) {
-      const checkinRef = doc(db, CHECKINS_COLLECTION, userId);
-      const checkinSnap = await transaction.get(checkinRef);
-      if (checkinSnap.exists()) {
-        const checkinData = checkinSnap.data();
-        transaction.update(checkinRef, {
-          unlockedBalance: (checkinData.unlockedBalance || 0) + breakdown.checkIn,
-          lifetimeWithdrawn: Math.max(0, (checkinData.lifetimeWithdrawn || 0) - breakdown.checkIn),
-        });
-      }
+    // All reads are done — now safe to write.
+    if (userRef && userSnap && userSnap.exists()) {
+      const userData = userSnap.data();
+      transaction.update(userRef, {
+        referralBonusTotal: (userData.referralBonusTotal || 0) + breakdown.referral,
+        welcomeBonus: (userData.welcomeBonus || 0) + breakdown.welcome,
+      });
+    }
+
+    if (checkinRef && checkinSnap && checkinSnap.exists()) {
+      const checkinData = checkinSnap.data();
+      transaction.update(checkinRef, {
+        unlockedBalance: (checkinData.unlockedBalance || 0) + breakdown.checkIn,
+        lifetimeWithdrawn: Math.max(0, (checkinData.lifetimeWithdrawn || 0) - breakdown.checkIn),
+      });
     }
 
     if (breakdown.vipProfit > 0 && breakdown.perInvestmentDraws) {
-      for (const d of breakdown.perInvestmentDraws) {
-        const depositRef = doc(db, DEPOSITS_COLLECTION, d.depositId);
-        const depositSnap = await transaction.get(depositRef);
-        if (depositSnap.exists()) {
+      breakdown.perInvestmentDraws.forEach((d, idx) => {
+        const depositSnap = depositSnaps[idx];
+        if (depositSnap && depositSnap.exists()) {
           const depositData = depositSnap.data();
-          transaction.update(depositRef, {
+          transaction.update(depositRefs[idx], {
             lifetimeWithdrawn: Math.max(0, (depositData.lifetimeWithdrawn || 0) - d.amount),
           });
         }
-      }
+      });
     }
 
     const requestRef = doc(db, WITHDRAWAL_REQUESTS_COLLECTION, request.id);

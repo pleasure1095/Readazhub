@@ -71,6 +71,7 @@ const USER_ITEMS = [
 const ADMIN_ITEMS = [
   { key: "deposits", label: "Deposits", Icon: IconWallet },
   { key: "earnings", label: "Earnings", Icon: IconInvest },
+  { key: "cashflow", label: "Cash Flow", Icon: IconWallet },
   { key: "users", label: "Users", Icon: IconUsers },
 ];
 

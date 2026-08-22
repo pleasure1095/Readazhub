@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { C, buttonStyle, cardStyle } from "../styles/theme";
 import FormInput from "../components/FormInput";
-import { listAllUsers, setUserRole } from "../services/adminUsers";
+import { listAllUsers, setUserRole, deleteUserAndReverseBonus } from "../services/adminUsers";
 
 function chipStyle(color) {
   return {
@@ -26,6 +26,12 @@ export default function ManageUsersPage() {
   const [ok, setOk] = useState("");
   const [busyUid, setBusyUid] = useState(null);
   const [expandedUid, setExpandedUid] = useState(null);
+  // Two-tap confirmation for delete — set to the uid awaiting a second
+  // confirming tap, cleared on any other action. Deletion is
+  // irreversible (see deleteUserAndReverseBonus in services/adminUsers.js
+  // for the full clawback + cleanup it performs), so a single accidental
+  // tap should never be enough to trigger it.
+  const [confirmDeleteUid, setConfirmDeleteUid] = useState(null);
 
   async function load() {
     setLoading(true);
@@ -55,6 +61,30 @@ export default function ManageUsersPage() {
     } catch (e) {
       console.error(e);
       setErr("Could not update role.");
+    }
+    setBusyUid(null);
+  }
+
+  async function handleDelete(u) {
+    if (confirmDeleteUid !== u.uid) {
+      // First tap: arm confirmation, don't delete yet.
+      setConfirmDeleteUid(u.uid);
+      setErr("");
+      setOk("");
+      return;
+    }
+    // Second tap on the same user within the confirmation window: proceed.
+    setErr("");
+    setOk("");
+    setBusyUid(u.uid);
+    setConfirmDeleteUid(null);
+    try {
+      await deleteUserAndReverseBonus(u.uid);
+      setOk(`${u.name} deleted. Any referral bonus their deposits generated has been reversed.`);
+      await load();
+    } catch (e) {
+      console.error(e);
+      setErr("Could not delete user.");
     }
     setBusyUid(null);
   }
@@ -146,6 +176,39 @@ export default function ManageUsersPage() {
                   >
                     {busyUid === u.uid ? "Updating…" : u.role === "admin" ? "Remove Admin" : "Make Admin"}
                   </button>
+                </div>
+
+                {/* Delete is separate from Make/Remove Admin above and
+                    requires two taps to confirm — deleteUserAndReverseBonus
+                    (services/adminUsers.js) both removes this user's data
+                    AND claws back any referral bonus their deposits
+                    generated for their referrer(s), so it's irreversible
+                    in a way that has real money consequences for OTHER
+                    users, not just this one. */}
+                <div style={{ marginTop: 10 }}>
+                  <button
+                    style={{ ...buttonStyle("danger"), fontSize: 11.5, padding: "7px 14px" }}
+                    onClick={() => handleDelete(u)}
+                    disabled={busyUid === u.uid || u.uid === currentAdmin.uid}
+                  >
+                    {busyUid === u.uid
+                      ? "Deleting…"
+                      : confirmDeleteUid === u.uid
+                      ? "Tap again to confirm delete"
+                      : "Delete User"}
+                  </button>
+                  {confirmDeleteUid === u.uid && (
+                    <div style={{ fontSize: 10.5, color: C.dim, marginTop: 6, lineHeight: 1.5 }}>
+                      This permanently deletes {u.name}'s data and reverses any referral bonus their
+                      deposits generated for their referrer(s). This cannot be undone.{" "}
+                      <span
+                        style={{ color: C.emerald, fontWeight: 700, cursor: "pointer" }}
+                        onClick={() => setConfirmDeleteUid(null)}
+                      >
+                        Cancel
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Referral visibility for admin — previously there was

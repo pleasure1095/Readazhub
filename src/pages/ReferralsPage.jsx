@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { C, buttonStyle, cardStyle } from "../styles/theme";
-import { calculateReferralNetworkEarnings } from "../services/referralEarnings";
+import { calculateReferralNetworkBreakdown } from "../services/referralEarnings";
 import { REFERRAL_LEVEL_1_PCT, REFERRAL_LEVEL_2_PCT } from "../utils/referralPlans";
 
 export default function ReferralsPage() {
@@ -11,28 +11,43 @@ export default function ReferralsPage() {
   const [loading, setLoading] = useState(true);
   // DEBUG: temporary error surface added while diagnosing why referral
   // bonuses aren't reflecting for some users despite correctly-linked
-  // referrerCode data — previously any failure in
-  // calculateReferralNetworkEarnings() was swallowed silently and just
-  // left the page showing ₦0 / no referrals, indistinguishable from
-  // "genuinely has no referrals yet." This makes any real error visible
-  // directly on the page so it can be diagnosed from a screenshot alone.
+  // referrerCode data — previously any failure in the network breakdown
+  // calculation was swallowed silently and just left the page showing
+  // ₦0 / no referrals, indistinguishable from "genuinely has no
+  // referrals yet." This makes any real error visible directly on the
+  // page so it can be diagnosed from a screenshot alone.
   const [debugError, setDebugError] = useState("");
 
   useEffect(() => {
     refreshUser();
-    calculateReferralNetworkEarnings(user.referralCode)
+    calculateReferralNetworkBreakdown(user.referralCode)
       .then((result) => {
         setNetwork(result);
         setLoading(false);
       })
       .catch((e) => {
-        console.error("Referral network calculation failed:", e);
+        console.error("Referral network breakdown failed:", e);
         setDebugError(`${e.code || ""} ${e.message || String(e)}`.trim());
         setLoading(false);
       });
   }, []);
 
   const link = `${window.location.origin}${window.location.pathname}?ref=${user.referralCode}`;
+
+  // The REAL, spendable bonus balance — a stored running total credited
+  // once per referral's deposit approval (see
+  // creditReferralBonusIfEligible, services/adminUsers.js), identical to
+  // what the Home dashboard's "Referral Bonus" card reads. This is the
+  // number that actually matters for withdrawal purposes.
+  //
+  // `network.lifetimeEarned` below (from calculateReferralNetworkBreakdown)
+  // is a SEPARATE, recomputed-from-scratch figure used only to drive the
+  // Level 1/Level 2 split and the per-referral list further down — it can
+  // legitimately drift below referralBonusTotal once any bonus has ever
+  // been withdrawn (referralBonusTotal decreases on withdrawal;
+  // recomputing "what was ever earned" does not), so it is intentionally
+  // NOT used as the headline total.
+  const totalReferralBonus = user.referralBonusTotal || 0;
 
   function copy(text, key) {
     navigator.clipboard.writeText(text).then(() => {
@@ -79,7 +94,7 @@ export default function ReferralsPage() {
             Total Referral Bonus
           </div>
           <div style={{ fontSize: 20, fontWeight: 800, color: C.green }}>
-            {loading ? "…" : `₦${network.lifetimeEarned.toLocaleString()}`}
+            ₦{totalReferralBonus.toLocaleString()}
           </div>
         </div>
       </div>
@@ -221,12 +236,11 @@ export default function ReferralsPage() {
       </div>
 
       <div style={{ ...cardStyle, fontSize: 12, color: C.muted, lineHeight: 1.7 }}>
-        Share your link or code with friends. You earn <strong style={{ color: C.text }}>{Math.round(REFERRAL_LEVEL_1_PCT * 100)}%</strong> of
-        the daily earnings of everyone you refer directly (Level 1), and{" "}
-        <strong style={{ color: C.text }}>{Math.round(REFERRAL_LEVEL_2_PCT * 100)}%</strong> of the daily earnings of everyone THEY refer
-        (Level 2) — for as long as their investments keep earning. Your
-        bonus follows their actual earnings exactly: if they miss a day's
-        review and earn ₦0 that day, your bonus for that day is ₦0 too.
+        Share your link or code with friends. The moment someone you referred directly (Level 1) gets their deposit
+        approved, you instantly earn <strong style={{ color: C.text }}>{Math.round(REFERRAL_LEVEL_1_PCT * 100)}%</strong> of
+        their deposit amount as a bonus — added straight to your withdrawable balance, no waiting required. You also earn{" "}
+        <strong style={{ color: C.text }}>{Math.round(REFERRAL_LEVEL_2_PCT * 100)}%</strong> of the deposit amount of anyone
+        THEY refer (Level 2), the same way.
       </div>
     </div>
   );

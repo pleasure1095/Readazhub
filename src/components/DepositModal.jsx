@@ -50,7 +50,8 @@ function genNarrationCode() {
   return code;
 }
 
-export default function DepositModal({ user, onClose, onDone, initialPlanId }) {
+export default function DepositModal({ user, onClose, onDone, initialPlanId, upgradeFromDepositId, upgradeFromPlanId }) {
+  const isUpgrade = !!upgradeFromDepositId;
   const [step, setStep] = useState(1);
   const [planId, setPlanId] = useState(initialPlanId || "vip1");
   const [amountPaid, setAmountPaid] = useState("");
@@ -67,6 +68,13 @@ export default function DepositModal({ user, onClose, onDone, initialPlanId }) {
   const [narrationCode] = useState(genNarrationCode);
 
   const plan = VIP_LIST.find((p) => p.id === planId);
+  const oldPlan = upgradeFromPlanId ? VIP_LIST.find((p) => p.id === upgradeFromPlanId) : null;
+  // Upgrade cost is the DIFFERENCE between tiers, not the new tier's full
+  // price — the user already paid for their current plan, so they only
+  // owe what's left to reach the higher tier. Only tiers strictly above
+  // the current one are valid upgrade targets.
+  const upgradeablePlans = oldPlan ? VIP_LIST.filter((p) => p.amount > oldPlan.amount) : VIP_LIST;
+  const amountDue = isUpgrade && oldPlan ? Math.max(0, plan.amount - oldPlan.amount) : plan.amount;
 
   function handleFile(e) {
     const f = e.target.files[0];
@@ -111,6 +119,8 @@ export default function DepositModal({ user, onClose, onDone, initialPlanId }) {
           txRef,
           narrationCode,
           screenshotFile,
+          upgradeFromDepositId: upgradeFromDepositId || null,
+          upgradeDiffAmount: isUpgrade ? amountDue : null,
         }),
         new Promise((_, reject) =>
           setTimeout(() => reject(new Error("This is taking longer than expected. Please check your connection and try again.")), 18000)
@@ -190,10 +200,15 @@ export default function DepositModal({ user, onClose, onDone, initialPlanId }) {
       {step === 1 && (
         <>
           <h2 style={{ fontSize: 18, fontWeight: 800, color: C.emerald, marginBottom: 16 }}>
-            Choose a VIP Plan
+            {isUpgrade ? `Upgrade from ${oldPlan?.label}` : "Choose a VIP Plan"}
           </h2>
+          {isUpgrade && (
+            <p style={{ fontSize: 12, color: C.muted, marginBottom: 12 }}>
+              You only pay the difference — your current plan closes and merges into the new tier once approved.
+            </p>
+          )}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 18 }}>
-            {VIP_LIST.map((p) => (
+            {upgradeablePlans.map((p) => (
               <div
                 key={p.id}
                 onClick={() => setPlanId(p.id)}
@@ -250,7 +265,12 @@ export default function DepositModal({ user, onClose, onDone, initialPlanId }) {
             <CopyRow label="Account Number" value={OPAY_DETAILS.accountNumber} />
             <CopyRow label="Account Name" value={OPAY_DETAILS.accountName} />
             <div style={{ borderTop: "1px solid rgba(36,28,32,0.09)", marginTop: 12, paddingTop: 12 }}>
-              <CopyRow label="Amount to Send" value={`₦${plan.amount.toLocaleString()}`} accent={C.green} big />
+              <CopyRow label="Amount to Send" value={`₦${amountDue.toLocaleString()}`} accent={C.green} big />
+              {isUpgrade && (
+                <p style={{ fontSize: 11, color: C.dim, marginTop: 8 }}>
+                  {oldPlan?.label} (₦{oldPlan?.amount.toLocaleString()}) + this payment = {plan.label} (₦{plan.amount.toLocaleString()})
+                </p>
+              )}
             </div>
           </div>
 
@@ -304,7 +324,7 @@ export default function DepositModal({ user, onClose, onDone, initialPlanId }) {
               Plan: <span style={{ color: plan.color }}>{plan.label} — ₦{plan.daily.toLocaleString()}/day</span>
             </div>
             <div style={{ marginTop: 4 }}>
-              Expected Amount: <span style={{ color: C.green }}>₦{plan.amount.toLocaleString()}</span>
+              Expected Amount: <span style={{ color: C.green }}>₦{amountDue.toLocaleString()}</span>{isUpgrade && <span style={{ color: C.dim }}> (upgrade difference)</span>}
             </div>
             <div style={{ marginTop: 4 }}>
               Narration Code Used: <span style={{ color: C.crimson, fontWeight: 700, letterSpacing: "0.05em" }}>{narrationCode}</span>
@@ -315,13 +335,13 @@ export default function DepositModal({ user, onClose, onDone, initialPlanId }) {
             <label style={labelStyle}>Amount You Paid (₦)</label>
             <FormInput
               type="number"
-              placeholder={`e.g. ${plan.amount}`}
+              placeholder={`e.g. ${amountDue}`}
               value={amountPaid}
               onChange={(e) => setAmountPaid(e.target.value)}
             />
-            {Number(amountPaid) > 0 && Number(amountPaid) !== plan.amount && (
+            {Number(amountPaid) > 0 && Number(amountPaid) !== amountDue && (
               <p style={{ fontSize: 11, color: C.dim, marginTop: 6 }}>
-                This differs from the expected ₦{plan.amount.toLocaleString()} — the admin will review this before
+                This differs from the expected ₦{amountDue.toLocaleString()} — the admin will review this before
                 approving.
               </p>
             )}

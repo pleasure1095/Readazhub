@@ -1,5 +1,5 @@
 import { C } from "../styles/theme";
-import { WHATSAPP_GROUP_LINK } from "../utils/paymentInfo";
+import { WHATSAPP_GROUP_LINK, WHATSAPP_GROUP_LINK_BACKUP } from "../utils/paymentInfo";
 
 /**
  * Permanent (non-dismissible) banner at the top of the Dashboard.
@@ -32,23 +32,38 @@ export default function WelcomeBanner() {
       <div style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>
         💬 Get updates, support, and announcements in our community.
       </div>
-      <a
-        href={WHATSAPP_GROUP_LINK}
-        target="_blank"
-        rel="noopener noreferrer"
-        style={{
-          padding: "8px 16px",
-          borderRadius: 9,
-          background: "linear-gradient(135deg,#D4506A,#8C1E2E)",
-          color: C.text,
-          fontSize: 12.5,
-          fontWeight: 700,
-          textDecoration: "none",
-          whiteSpace: "nowrap",
-        }}
-      >
-        Join WhatsApp
-      </a>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <a
+          href={WHATSAPP_GROUP_LINK}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            padding: "8px 16px",
+            borderRadius: 9,
+            background: "linear-gradient(135deg,#D4506A,#8C1E2E)",
+            color: C.text,
+            fontSize: 12.5,
+            fontWeight: 700,
+            textDecoration: "none",
+            whiteSpace: "nowrap",
+          }}
+        >
+          Join WhatsApp
+        </a>
+        <a
+          href={WHATSAPP_GROUP_LINK_BACKUP}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            fontSize: 11,
+            color: C.dim,
+            textDecoration: "underline",
+            whiteSpace: "nowrap",
+          }}
+        >
+          Backup group
+        </a>
+      </div>
     </div>
   );
 }

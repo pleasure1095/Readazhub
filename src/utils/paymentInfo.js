@@ -26,7 +26,16 @@ export const OPAY_DETAILS = {
 // WhatsApp support/community group link, used on the Dashboard welcome
 // banner, the first-login WelcomeModal, and the Settings "Contact
 // Support" link.
-export const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EZ208s7CBZdKThMEr1lEWe?s=cl&p=a&ilr=1";
+//
+// PRIMARY vs BACKUP: as of this change, WHATSAPP_GROUP_LINK is a second
+// group used as the main/first link (per the site owner: "should come
+// first for now"), while WHATSAPP_GROUP_LINK_BACKUP is the original
+// group, kept and shown as a secondary/backup option rather than
+// removed. Swapping which one is "primary" later only requires
+// reassigning these two constants — every component that renders the
+// WhatsApp link(s) reads from here rather than hardcoding a URL.
+export const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/C6PgxrGiHzC9s1M9pgXd3m?s=cl&p=a&ilr=1";
+export const WHATSAPP_GROUP_LINK_BACKUP = "https://chat.whatsapp.com/EZ208s7CBZdKThMEr1lEWe?s=cl&p=a&ilr=1";
 
 // Withdrawal window (WAT, Nigeria, UTC+1, no DST):
 //   Monday - Saturday: 9:00 AM - 6:00 PM

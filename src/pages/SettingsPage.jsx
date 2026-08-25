@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { reauthenticateUser } from "../services/auth";
 import { C, buttonStyle, cardStyle, labelStyle } from "../styles/theme";
-import { WHATSAPP_GROUP_LINK, BANKS } from "../utils/paymentInfo";
+import { WHATSAPP_GROUP_LINK, WHATSAPP_GROUP_LINK_BACKUP, BANKS } from "../utils/paymentInfo";
 import FormInput from "../components/FormInput";
 import { ErrorBox, SuccessBox } from "../components/MessageBox";
 
@@ -338,12 +338,26 @@ export default function SettingsPage() {
             fontSize: 13,
             color: C.emerald,
             textDecoration: "none",
+            paddingBottom: 6,
+          }}
+        >
+          Contact Support →
+        </a>
+        <a
+          href={WHATSAPP_GROUP_LINK_BACKUP}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: "block",
+            fontSize: 11.5,
+            color: C.dim,
+            textDecoration: "underline",
             paddingBottom: 14,
             marginBottom: 14,
             borderBottom: `1px solid ${C.border}`,
           }}
         >
-          Contact Support →
+          Backup support group →
         </a>
         <button style={{ ...buttonStyle("danger"), width: "100%" }} onClick={logout}>
           Sign Out

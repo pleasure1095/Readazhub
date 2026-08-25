@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { C, buttonStyle } from "../styles/theme";
-import { WHATSAPP_GROUP_LINK } from "../utils/paymentInfo";
+import { WHATSAPP_GROUP_LINK, WHATSAPP_GROUP_LINK_BACKUP } from "../utils/paymentInfo";
 import { VIP_LIST } from "../utils/vipPlans";
 import Logo from "./Logo";
 
@@ -125,13 +125,28 @@ export default function WelcomeModal({ userId, userName }) {
             fontWeight: 700,
             color: C.crimson,
             textDecoration: "none",
-            marginBottom: 20,
+            marginBottom: 8,
             padding: "10px",
             border: `1px solid ${C.crimson}30`,
             borderRadius: 10,
           }}
         >
           💬 Join our WhatsApp community
+        </a>
+        <a
+          href={WHATSAPP_GROUP_LINK_BACKUP}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: "block",
+            textAlign: "center",
+            fontSize: 11,
+            color: C.dim,
+            textDecoration: "underline",
+            marginBottom: 20,
+          }}
+        >
+          Trouble joining? Try our backup group
         </a>
         <button style={{ ...buttonStyle("gold"), width: "100%" }} onClick={dismiss}>
           Get Started

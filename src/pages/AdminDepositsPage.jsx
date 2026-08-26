@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import { C, buttonStyle, cardStyle, labelStyle } from "../styles/theme";
 import { getAllDeposits, approveDeposit, rejectDeposit } from "../services/deposits";
 import { getAllWithdrawalRequests, markCombinedWithdrawalPaid, rejectCombinedWithdrawal } from "../services/withdrawalRequests";
+import { listAllUsers, revertTodaysCompletionsForLaunchPause } from "../services/adminUsers";
 import FormInput from "../components/FormInput";
 import { ErrorBox, SuccessBox } from "../components/MessageBox";
+import AdminCreateDepositModal from "../components/AdminCreateDepositModal";
 
 function chipStyle(color) {
   return {
@@ -45,6 +47,9 @@ function withdrawalAge(requestedAt) {
 export default function AdminDepositsPage() {
   const [deposits, setDeposits] = useState([]);
   const [withdrawalRequests, setWithdrawalRequests] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [revertBusy, setRevertBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("pending");
   const [notes, setNotes] = useState({});
@@ -58,9 +63,10 @@ export default function AdminDepositsPage() {
   async function load() {
     setLoading(true);
     try {
-      const [allDeposits, allWithdrawals] = await Promise.all([getAllDeposits(), getAllWithdrawalRequests()]);
+      const [allDeposits, allWithdrawals, allUsers] = await Promise.all([getAllDeposits(), getAllWithdrawalRequests(), listAllUsers()]);
       setDeposits(allDeposits);
       setWithdrawalRequests(allWithdrawals);
+      setUsers(allUsers);
     } catch (e) {
       console.error(e);
       setErr("Could not load deposits.");
@@ -132,6 +138,27 @@ export default function AdminDepositsPage() {
     setBusyId(null);
   }
 
+  // ONE-TIME launch-pause data fix (see utils/launchPause.js) — reverts
+  // any reading-task completions recorded for TODAY that happened before
+  // the pause was deployed, per the site owner's explicit instruction.
+  // Safe to click more than once (no-op for already-clean users).
+  async function handleRevertTodayCompletions() {
+    if (!window.confirm("Revert today's reading-task completions for ALL users? This is a one-time launch fix.")) return;
+    setRevertBusy(true);
+    setErr("");
+    setOk("");
+    try {
+      const result = await revertTodaysCompletionsForLaunchPause();
+      setOk(
+        `Done — reverted ${result.reverted} user(s), ${result.alreadyClean} already had no completion for ${result.todayDateString}.`
+      );
+    } catch (e) {
+      console.error(e);
+      setErr("Could not revert today's completions.");
+    }
+    setRevertBusy(false);
+  }
+
   let filtered = deposits.filter((d) => tab === "all" || d.status === tab);
   if (searchName.trim()) filtered = filtered.filter((d) => d.userName?.toLowerCase().includes(searchName.trim().toLowerCase()));
   if (searchEmail.trim()) filtered = filtered.filter((d) => d.userEmail?.toLowerCase().includes(searchEmail.trim().toLowerCase()));
@@ -177,6 +204,37 @@ export default function AdminDepositsPage() {
         Deposit Management
       </h1>
       <p style={{ fontSize: 13, color: C.muted, marginBottom: 20 }}>Review and approve user deposit requests</p>
+
+      <button
+        style={{ ...buttonStyle("gold"), marginBottom: 12 }}
+        onClick={() => setShowCreateModal(true)}
+      >
+        + Create Deposit for User
+      </button>
+
+      <div style={{ marginBottom: 20 }}>
+        <button
+          style={{ ...buttonStyle("danger"), fontSize: 12.5 }}
+          onClick={handleRevertTodayCompletions}
+          disabled={revertBusy}
+        >
+          {revertBusy ? "Reverting…" : "⚠ Launch fix: Revert today's completions (one-time)"}
+        </button>
+        <p style={{ fontSize: 11, color: C.dim, marginTop: 6 }}>
+          One-time fix for the Aug 26 launch pause — removes today's reading-task completion for every user who did it before the pause went live. Safe to click more than once.
+        </p>
+      </div>
+
+      {showCreateModal && (
+        <AdminCreateDepositModal
+          users={users}
+          onClose={() => setShowCreateModal(false)}
+          onDone={() => {
+            setOk("Deposit created and approved.");
+            load();
+          }}
+        />
+      )}
 
       <ErrorBox msg={err} />
       <SuccessBox msg={ok} />
@@ -284,6 +342,7 @@ export default function AdminDepositsPage() {
                       <span style={{ fontSize: 15, color: C.text, fontWeight: 500 }}>{dep.userName}</span>
                       <span style={chipStyle(sc)}>{dep.status.toUpperCase()}</span>
                       {dep.upgradeFromDepositId && <span style={chipStyle(C.gold)}>UPGRADE</span>}
+                      {dep.createdByAdmin && <span style={chipStyle(C.dim)}>ADMIN-CREATED</span>}
                       {isLateStarterUpgrade(dep) && <span style={chipStyle(C.red)}>LATE — MISSED DEADLINE</span>}
                     </div>
                     <div style={{ fontSize: 12, color: C.muted }}>{dep.userEmail}</div>

@@ -54,7 +54,7 @@ export default function CheckInWidget({ userId, isVipMember }) {
       setOk(`₦${CHECKIN_DAILY_REWARD.toLocaleString()} added to your withdrawable balance!`);
     } catch (e) {
       console.error("Check-in failed:", e);
-      setErr("Could not check in. Please try again.");
+      setErr(e.message || "Could not check in. Please try again.");
     }
     setBusy(false);
   }

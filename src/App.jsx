@@ -7,6 +7,7 @@ import Nav from "./components/Nav";
 import BottomTabBar from "./components/BottomTabBar";
 import WelcomeModal from "./components/WelcomeModal";
 import DashboardPage from "./pages/DashboardPage";
+import DailyTaskPage from "./pages/DailyTaskPage";
 import VipPlansPage from "./pages/VipPlansPage";
 import ReferralsPage from "./pages/ReferralsPage";
 import NotificationsPage from "./pages/NotificationsPage";
@@ -76,6 +77,7 @@ export default function App() {
       return <AdminDepositsPage />
     }
     if (activeTab === "plans") return <VipPlansPage onJoined={() => setTab("dashboard")} />;
+    if (activeTab === "dailyTask") return <DailyTaskPage />;
     if (activeTab === "referrals") return <ReferralsPage />;
     if (activeTab === "notifications") return <NotificationsPage />;
     if (activeTab === "settings") return <SettingsPage />;
@@ -84,13 +86,19 @@ export default function App() {
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.text }}>
-      <Nav user={user} onLogout={logout} />
+      <Nav
+        user={user}
+        onLogout={logout}
+        isAdmin={isAdmin}
+        unreadCount={unreadCount}
+        onOpenNotifications={() => setTab("notifications")}
+      />
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "24px 16px", paddingBottom: 100 }}>
         {renderTab()}
       </div>
       {/* Primary navigation — always visible, matching the reference
           app's bottom bar design. */}
-      <BottomTabBar tab={activeTab} setTab={setTab} isAdmin={isAdmin} unreadCount={unreadCount} />
+      <BottomTabBar tab={activeTab} setTab={setTab} isAdmin={isAdmin} />
       <WelcomeModal userId={user.uid} userName={user.name} />
     </div>
   );

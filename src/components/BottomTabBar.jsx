@@ -2,34 +2,34 @@ import { C } from "../styles/theme";
 
 // Small inline icon set — avoids adding an icon library dependency for
 // just a handful of simple glyphs. Each is a minimal 24x24 stroke icon.
-function IconHome({ active }) {
+function IconHome({ active, color }) {
   return (
-    <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke={active ? C.gold : C.navMuted} strokeWidth="2">
+    <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke={active ? color : C.navMuted} strokeWidth="2">
       <path d="M3 11.5 12 4l9 7.5" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
-function IconInvest({ active }) {
+function IconInvest({ active, color }) {
   return (
-    <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke={active ? C.gold : C.navMuted} strokeWidth="2">
+    <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke={active ? color : C.navMuted} strokeWidth="2">
       <path d="M3 3v18h18" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M7 15l4-4 3 3 5-6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
-function IconWallet({ active }) {
+function IconWallet({ active, color }) {
   return (
-    <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke={active ? C.gold : C.navMuted} strokeWidth="2">
+    <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke={active ? color : C.navMuted} strokeWidth="2">
       <rect x="3" y="6" width="18" height="13" rx="2" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M16 12h2" strokeLinecap="round" />
       <path d="M3 9h18" strokeLinecap="round" />
     </svg>
   );
 }
-function IconUsers({ active }) {
+function IconUsers({ active, color }) {
   return (
-    <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke={active ? C.gold : C.navMuted} strokeWidth="2">
+    <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke={active ? color : C.navMuted} strokeWidth="2">
       <circle cx="9" cy="8" r="3" />
       <path d="M3 20v-1a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v1" strokeLinecap="round" strokeLinejoin="round" />
       <circle cx="17" cy="9" r="2.3" />
@@ -37,17 +37,17 @@ function IconUsers({ active }) {
     </svg>
   );
 }
-function IconBell({ active }) {
+function IconBook({ active, color }) {
   return (
-    <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke={active ? C.gold : C.navMuted} strokeWidth="2">
-      <path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M13.7 21a2 2 0 0 1-3.4 0" strokeLinecap="round" strokeLinejoin="round" />
+    <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke={active ? color : C.navMuted} strokeWidth="2">
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
-function IconSettings({ active }) {
+function IconSettings({ active, color }) {
   return (
-    <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke={active ? C.gold : C.navMuted} strokeWidth="2">
+    <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke={active ? color : C.navMuted} strokeWidth="2">
       <circle cx="12" cy="12" r="3" />
       <path
         d="M19.4 13a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V19a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H4a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H10a1.7 1.7 0 0 0 1-1.5V4a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V10a1.7 1.7 0 0 0 1.5 1H20a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"
@@ -58,21 +58,25 @@ function IconSettings({ active }) {
   );
 }
 
-// Full 5-item nav for regular users, matching the reference design's
-// Home/Invest/Portfolio/Network/Account style bottom bar.
+// Full 5-item nav for regular users. "Alerts" moved to the top Nav bar
+// (bell icon, top-right) per the site owner's request; this bottom bar
+// now has "Daily Task" in its place, linking to the new standalone
+// Read & Earn page. Each item gets its own distinct `color` (used for
+// both the icon stroke and label text when active) so the tabs are
+// visually differentiated from one another, not just gold-vs-muted.
 const USER_ITEMS = [
-  { key: "dashboard", label: "Home", Icon: IconHome },
-  { key: "plans", label: "Plans", Icon: IconInvest },
-  { key: "referrals", label: "Referrals", Icon: IconUsers },
-  { key: "notifications", label: "Alerts", Icon: IconBell },
-  { key: "settings", label: "Settings", Icon: IconSettings },
+  { key: "dashboard", label: "Home", Icon: IconHome, color: C.gold },
+  { key: "plans", label: "Plans", Icon: IconInvest, color: C.emerald },
+  { key: "dailyTask", label: "Daily Task", Icon: IconBook, color: C.crimson },
+  { key: "referrals", label: "Referrals", Icon: IconUsers, color: C.blue },
+  { key: "settings", label: "Settings", Icon: IconSettings, color: C.purple },
 ];
 
 const ADMIN_ITEMS = [
-  { key: "deposits", label: "Deposits", Icon: IconWallet },
-  { key: "earnings", label: "Earnings", Icon: IconInvest },
-  { key: "cashflow", label: "Cash Flow", Icon: IconWallet },
-  { key: "users", label: "Users", Icon: IconUsers },
+  { key: "deposits", label: "Deposits", Icon: IconWallet, color: C.gold },
+  { key: "earnings", label: "Earnings", Icon: IconInvest, color: C.emerald },
+  { key: "cashflow", label: "Cash Flow", Icon: IconWallet, color: C.blue },
+  { key: "users", label: "Users", Icon: IconUsers, color: C.purple },
 ];
 
 /**
@@ -82,7 +86,7 @@ const ADMIN_ITEMS = [
  * daily use in favor of this bar; Nav.jsx now only renders the logo/
  * greeting/sign-out row, no duplicate tab buttons.
  */
-export default function BottomTabBar({ tab, setTab, isAdmin, unreadCount = 0 }) {
+export default function BottomTabBar({ tab, setTab, isAdmin }) {
   const items = isAdmin ? ADMIN_ITEMS : USER_ITEMS;
 
   return (
@@ -102,9 +106,8 @@ export default function BottomTabBar({ tab, setTab, isAdmin, unreadCount = 0 }) 
         zIndex: 60,
       }}
     >
-      {items.map(({ key, label, Icon }) => {
+      {items.map(({ key, label, Icon, color }) => {
         const active = tab === key;
-        const showBadge = key === "notifications" && unreadCount > 0;
         return (
           <button
             key={key}
@@ -123,35 +126,12 @@ export default function BottomTabBar({ tab, setTab, isAdmin, unreadCount = 0 }) 
             }}
           >
             <div style={{ position: "relative" }}>
-              <Icon active={active} />
-              {showBadge && (
-                <span
-                  style={{
-                    position: "absolute",
-                    top: -4,
-                    right: -6,
-                    background: C.red,
-                    color: "#fff",
-                    borderRadius: "50%",
-                    minWidth: 15,
-                    height: 15,
-                    fontSize: 9,
-                    fontWeight: 800,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    padding: "0 3px",
-                    border: `1.5px solid ${C.navDarkDeep}`,
-                  }}
-                >
-                  {unreadCount > 9 ? "9+" : unreadCount}
-                </span>
-              )}
+              <Icon active={active} color={color} />
             </div>
             <span
               style={{
                 fontSize: 10,
-                color: active ? C.gold : C.navMuted,
+                color: active ? color : C.navMuted,
                 fontWeight: active ? 800 : 600,
                 letterSpacing: "0.02em",
               }}

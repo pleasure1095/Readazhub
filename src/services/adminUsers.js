@@ -7,6 +7,70 @@ const DEPOSITS_COLLECTION = "deposits";
 const REVIEWS_COLLECTION = "reviews";
 const CHECKINS_COLLECTION = "checkins";
 
+// Matches the WAT date-string format used throughout reviews.js/
+// withdrawalRequests.js, so this revert targets exactly the same "today"
+// those files mean.
+function getWATDateString(timestamp = Date.now()) {
+  const watMs = timestamp + 60 * 60 * 1000;
+  const d = new Date(watMs);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+}
+
+/**
+ * ONE-TIME data fix for the Aug 26, 2026 launch pause (see
+ * utils/launchPause.js) — per the site owner's explicit instruction:
+ * anyone who already completed TODAY's (Aug 26 WAT) reading task before
+ * the pause was deployed needs that completion REVERTED, so it doesn't
+ * count once the pause lifts. This only strips today's date out of
+ * completedDays/completedDayTimestamps/readArticleIds — it does NOT
+ * touch any other day's history, does NOT touch deposits/earnings
+ * figures directly (those are derived live from completedDays, so
+ * removing today's date here automatically zeroes today's contribution
+ * everywhere else), and does NOT touch the 24h cooldown timestamp
+ * (lastRatingAt) since the pause's own check in markArticleRead already
+ * blocks new reads regardless of cooldown state.
+ *
+ * SAFE TO RUN MORE THAN ONCE: it only ever removes today's WAT date if
+ * present — running it again after it's already been reverted for a
+ * user is a no-op for them (findable via the returned `alreadyClean`
+ * count). Intended to be run exactly once, via the admin button in
+ * AdminDepositsPage.jsx, then never needed again after this launch.
+ */
+export async function revertTodaysCompletionsForLaunchPause() {
+  const todayDateString = getWATDateString();
+  const usersSnap = await getDocs(collection(db, REVIEWS_COLLECTION));
+
+  let reverted = 0;
+  let alreadyClean = 0;
+
+  for (const userDoc of usersSnap.docs) {
+    const data = userDoc.data();
+    const completedDays = data.completedDays || [];
+    if (!completedDays.includes(todayDateString)) {
+      alreadyClean++;
+      continue;
+    }
+
+    const updatedCompletedDays = completedDays.filter((d) => d !== todayDateString);
+    const updatedTimestamps = { ...(data.completedDayTimestamps || {}) };
+    delete updatedTimestamps[todayDateString];
+
+    const update = { completedDays: updatedCompletedDays, completedDayTimestamps: updatedTimestamps };
+    // Only clear today's in-progress read list if it was today's — an
+    // older lastRatingDate means readArticleIds already refers to a
+    // past day and getReviewStatus() ignores it anyway (see reviews.js:
+    // readArticleIds is only honored when lastRatingDate === today).
+    if (data.lastRatingDate === todayDateString) {
+      update.readArticleIds = [];
+    }
+
+    await updateDoc(doc(db, REVIEWS_COLLECTION, userDoc.id), update);
+    reverted++;
+  }
+
+  return { reverted, alreadyClean, totalChecked: usersSnap.docs.length, todayDateString };
+}
+
 /**
  * Fetches all user profiles, newest first. Fine for now given expected
  * user volumes; if the user base grows large, this should be paginated

@@ -254,6 +254,82 @@ export async function submitDeposit({ userId, userName, userEmail, planId, amoun
 }
 
 /**
+ * Admin action: creates a deposit that is ALREADY APPROVED, for users who
+ * have difficulty completing the normal self-service submit flow. Skips
+ * straight to status "approved" with no pending/proof step — no
+ * screenshotUrl or txRef, since the admin is vouching for the payment
+ * directly rather than reviewing evidence of it. Reuses the exact same
+ * plan-lookup, referral-bonus-crediting, and notification logic as the
+ * normal approveDeposit() path so an admin-created deposit is
+ * indistinguishable from a normal approved one everywhere else in the
+ * app (earnings, withdrawals, referral bonuses, and the 30-day plan
+ * expiry all behave identically, since they all key off approvedAt).
+ *
+ * Also respects the VIP Starter retirement rule from submitDeposit()
+ * above — an admin creating a deposit from scratch shouldn't be able to
+ * issue a plan that's no longer sold to anyone else.
+ *
+ * amount/amountPaid/expectedAmountPaid are all set equal to the plan's
+ * listed price — there's no separate "amount paid" proof step to
+ * diverge from it here, unlike the self-service flow where a user might
+ * report paying something different from what's expected.
+ */
+export async function adminSubmitDeposit({ userId, userName, userEmail, planId, adminNote = "" }) {
+  const plan = VIPS[planId];
+  if (!plan) throw new Error("Invalid VIP plan selected.");
+  if (planId === "vip1") {
+    throw new Error("VIP Starter is no longer available for new deposits. Please choose VIP Builder or above.");
+  }
+
+  const reference = genRef();
+  const now = Date.now();
+
+  const depositData = {
+    ref: reference,
+    userId,
+    userName,
+    userEmail,
+    planId,
+    planLabel: plan.label,
+    planDaily: plan.daily,
+    amount: plan.amount,
+    amountPaid: plan.amount,
+    expectedAmountPaid: plan.amount,
+    txRef: "",
+    narrationCode: "",
+    screenshotUrl: null,
+    status: "approved",
+    lifetimeWithdrawn: 0,
+    submittedAt: now,
+    approvedAt: now,
+    decidedAt: now,
+    adminNote: adminNote.trim() || "Created directly by admin.",
+    // Flags this as admin-created rather than self-service, purely for
+    // display (e.g. an "ADMIN-CREATED" badge on the deposits list) —
+    // doesn't affect earnings, withdrawal, or referral logic anywhere.
+    createdByAdmin: true,
+    upgradeFromDepositId: null,
+    upgradeDiffAmount: null,
+  };
+
+  const docRef = await addDoc(collection(db, DEPOSITS_COLLECTION), depositData);
+  const deposit = { id: docRef.id, ...depositData };
+
+  // Same one-time flat referral bonus as the normal approval path — the
+  // referred user's referrer(s) should be credited exactly the same way
+  // whether the deposit was self-submitted or admin-created.
+  await creditReferralBonusIfEligible(deposit);
+
+  await createNotification(
+    userId,
+    "approved",
+    `Your deposit of ₦${plan.amount.toLocaleString()} (${plan.label}) has been recorded and is now active. Earnings begin in 24 hours.`
+  );
+
+  return deposit;
+}
+
+/**
  * Admin action: approve a pending deposit. Sets approvedAt, which is the
  * timestamp all earnings calculations key off (see utils/earnings.js —
  * earnings begin 24h after this moment, not after submission).

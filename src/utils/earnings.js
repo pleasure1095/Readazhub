@@ -117,12 +117,31 @@ export function calculateInvestmentEarnings(
   reviewedDatesForInvestment = null,
   completedDayTimestamps = null
 ) {
+  const PLAN_DURATION_DAYS = 30;
+  const PLAN_DURATION_MS = PLAN_DURATION_DAYS * 24 * 60 * 60 * 1000;
+  const planExpiresAt = approvedAt + PLAN_DURATION_MS;
+  const isExpired = now >= planExpiresAt;
+
   // "totalEarnings" here means the theoretical max if every elapsed day
   // since approval had been read — kept for the existing "missed
   // earnings" transparency figure. Elapsed days are now measured plainly
   // from approval (no more up-front 24h grace period before the first
   // day can even be attempted).
-  const daysSinceApproval = Math.max(0, Math.floor((now - approvedAt) / (24 * 60 * 60 * 1000)) + 1);
+  //
+  // Capped at PLAN_DURATION_DAYS (30): every READAZHUB plan runs for a
+  // fixed 30-day cycle, after which it stops accruing NEW earnings —
+  // capping daysSinceApproval here automatically caps totalEarnings,
+  // availableEarnings, and missedEarnings below, since they all derive
+  // from it. This does NOT touch withdrawableBalance for money already
+  // earned before day 30 — a user who earned ₦2,000 in matured profit
+  // during the 30 days keeps full access to withdraw it after the plan
+  // closes; only the ability to earn MORE stops. See DashboardPage.jsx /
+  // AdminEarningsPage.jsx for where `isExpired` is used to relabel a
+  // plan "Closed" instead of "Active" once this cap is reached.
+  const daysSinceApproval = Math.min(
+    PLAN_DURATION_DAYS,
+    Math.max(0, Math.floor((now - approvedAt) / (24 * 60 * 60 * 1000)) + 1)
+  );
   const totalEarnings = dailyRate * daysSinceApproval;
 
   const cappedReviewedDays = Math.min(reviewedDayCount, daysSinceApproval);
@@ -139,9 +158,16 @@ export function calculateInvestmentEarnings(
       completedDayTimestamps,
       now
     );
-    maturedEarnings = dailyRate * maturedCount;
-    maturingEarnings = dailyRate * maturingCount;
-    nextMaturityAt = nextAt;
+    // Matured/maturing day counts from splitMaturedDays aren't
+    // pre-capped to the 30-day window (that function only knows about
+    // read history, not plan duration) — cap them here the same way
+    // cappedReviewedDays caps availableEarnings above, so a plan that's
+    // run past day 30 doesn't keep counting newly-matured days from
+    // reads that happened after expiry.
+    const cappedMaturedCount = Math.min(maturedCount, daysSinceApproval);
+    maturedEarnings = dailyRate * cappedMaturedCount;
+    maturingEarnings = isExpired ? 0 : dailyRate * maturingCount;
+    nextMaturityAt = isExpired ? null : nextAt;
   }
 
   // Withdrawable balance only ever comes from MATURED earnings — a day
@@ -159,6 +185,8 @@ export function calculateInvestmentEarnings(
     nextMaturityAt,
     missedEarnings,
     withdrawableBalance,
+    planExpiresAt,
+    isExpired,
   };
 }
 

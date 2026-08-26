@@ -53,7 +53,7 @@ function genNarrationCode() {
 export default function DepositModal({ user, onClose, onDone, initialPlanId, upgradeFromDepositId, upgradeFromPlanId }) {
   const isUpgrade = !!upgradeFromDepositId;
   const [step, setStep] = useState(1);
-  const [planId, setPlanId] = useState(initialPlanId || "vip1");
+  const [planId, setPlanId] = useState(initialPlanId || "vip2");
   const [amountPaid, setAmountPaid] = useState("");
   const [txRef, setTxRef] = useState("");
   const [screenshotFile, setScreenshotFile] = useState(null);
@@ -69,11 +69,16 @@ export default function DepositModal({ user, onClose, onDone, initialPlanId, upg
 
   const plan = VIP_LIST.find((p) => p.id === planId);
   const oldPlan = upgradeFromPlanId ? VIP_LIST.find((p) => p.id === upgradeFromPlanId) : null;
-  // Upgrade cost is the DIFFERENCE between tiers, not the new tier's full
-  // price — the user already paid for their current plan, so they only
-  // owe what's left to reach the higher tier. Only tiers strictly above
-  // the current one are valid upgrade targets.
-  const upgradeablePlans = oldPlan ? VIP_LIST.filter((p) => p.amount > oldPlan.amount) : VIP_LIST;
+  // VIP Starter (vip1, ₦3,000) is retired from new purchases — existing
+  // Starter plans keep running/resolving normally via VIP_LIST lookups
+  // elsewhere (DashboardPage.jsx plan cards, admin views), only the
+  // NEW-PURCHASE picker below excludes it. VIP Builder (₦5,000) is now
+  // the effective minimum entry tier. Upgrade targets are unaffected by
+  // this — a Starter user upgrading still sees every tier above their
+  // OWN plan, same as before; this filter only trims the plain
+  // "Choose a VIP Plan" list for brand-new, non-upgrade deposits.
+  const purchasablePlans = VIP_LIST.filter((p) => p.id !== "vip1");
+  const upgradeablePlans = oldPlan ? VIP_LIST.filter((p) => p.amount > oldPlan.amount) : purchasablePlans;
   const amountDue = isUpgrade && oldPlan ? Math.max(0, plan.amount - oldPlan.amount) : plan.amount;
 
   function handleFile(e) {
@@ -121,6 +126,7 @@ export default function DepositModal({ user, onClose, onDone, initialPlanId, upg
           screenshotFile,
           upgradeFromDepositId: upgradeFromDepositId || null,
           upgradeDiffAmount: isUpgrade ? amountDue : null,
+          expectedAmountPaid: amountDue,
         }),
         new Promise((_, reject) =>
           setTimeout(() => reject(new Error("This is taking longer than expected. Please check your connection and try again.")), 18000)

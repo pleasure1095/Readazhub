@@ -143,6 +143,23 @@ export default function AdminDepositsPage() {
         (d.narrationCode || "").toLowerCase().includes(searchRef.trim().toLowerCase())
     );
 
+  // Lookup for flagging "late" upgrades — an upgrade whose OLD plan was
+  // VIP Starter (vip1) and was submitted after the Starter retirement
+  // deadline. Built from the already-loaded `deposits` list, no extra
+  // Firestore query needed. This is purely an admin-visibility aid: the
+  // deadline itself is enforced client-side only (see DashboardPage.jsx
+  // VIP_STARTER_DEADLINE) — Firestore never marks a deposit "expired",
+  // so approveDeposit already handles a late upgrade exactly like any
+  // other; this tag just helps the admin recognize a recovery case at a
+  // glance rather than treating it as routine.
+  const VIP_STARTER_DEADLINE = new Date("2026-08-26T11:00:00.000Z").getTime();
+  const depositsById = new Map(deposits.map((d) => [d.id, d]));
+  function isLateStarterUpgrade(dep) {
+    if (!dep.upgradeFromDepositId) return false;
+    const oldDep = depositsById.get(dep.upgradeFromDepositId);
+    return !!oldDep && oldDep.planId === "vip1" && dep.submittedAt >= VIP_STARTER_DEADLINE;
+  }
+
   const counts = {
     pending: deposits.filter((d) => d.status === "pending").length,
     approved: deposits.filter((d) => d.status === "approved").length,
@@ -267,13 +284,14 @@ export default function AdminDepositsPage() {
                       <span style={{ fontSize: 15, color: C.text, fontWeight: 500 }}>{dep.userName}</span>
                       <span style={chipStyle(sc)}>{dep.status.toUpperCase()}</span>
                       {dep.upgradeFromDepositId && <span style={chipStyle(C.gold)}>UPGRADE</span>}
+                      {isLateStarterUpgrade(dep) && <span style={chipStyle(C.red)}>LATE — MISSED DEADLINE</span>}
                     </div>
                     <div style={{ fontSize: 12, color: C.muted }}>{dep.userEmail}</div>
                     <div style={{ fontSize: 11, color: C.dim, marginTop: 2 }}>Submitted: {fmtDate(dep.submittedAt)}</div>
                   </div>
                   <div style={{ textAlign: "right" }}>
                     <div style={{ fontSize: 22, fontWeight: 800, color: C.green }}>
-                      ₦{(dep.upgradeFromDepositId ? dep.upgradeDiffAmount : dep.amount || 0).toLocaleString()}
+                      ₦{(dep.expectedAmountPaid ?? (dep.upgradeFromDepositId ? dep.upgradeDiffAmount : dep.amount) ?? 0).toLocaleString()}
                     </div>
                     <div style={{ fontSize: 11, color: C.muted }}>
                       {dep.planLabel} · ₦{(dep.planDaily || 0).toLocaleString()}/day
@@ -296,7 +314,7 @@ export default function AdminDepositsPage() {
                     </div>
                   )}
                   {dep.amountPaid != null && (() => {
-                    const expected = dep.upgradeFromDepositId ? dep.upgradeDiffAmount : dep.amount;
+                    const expected = dep.expectedAmountPaid ?? (dep.upgradeFromDepositId ? dep.upgradeDiffAmount : dep.amount);
                     const matches = dep.amountPaid === expected;
                     return (
                       <div style={{ fontSize: 12, marginTop: 4 }}>

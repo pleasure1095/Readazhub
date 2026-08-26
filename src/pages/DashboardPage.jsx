@@ -73,6 +73,139 @@ function MaturityCountdown({ targetTs, style }) {
   return <span style={style}>{text}</span>;
 }
 
+/**
+ * Bold "digital clock" style countdown to a plan's 30-day expiry —
+ * dark glowing segments (days / hrs / min), switching to a red/orange
+ * glow in the final URGENT_THRESHOLD_MS window so a user notices their
+ * plan is about to close. Ticks once a minute (not every second, unlike
+ * MaturityCountdown above) — a 30-day countdown doesn't need
+ * second-level precision, and a slower tick is kinder to battery/perf
+ * for what's likely to be several of these rendered at once if a user
+ * has multiple plans.
+ */
+const URGENT_THRESHOLD_MS = 3 * 24 * 60 * 60 * 1000; // last 3 days
+function PlanCountdown({ targetTs }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 60000);
+    return () => clearInterval(t);
+  }, []);
+
+  if (!targetTs) return null;
+  const remainingMs = targetTs - now;
+  if (remainingMs <= 0) return null;
+
+  const totalMinutes = Math.floor(remainingMs / 60000);
+  const days = Math.floor(totalMinutes / (24 * 60));
+  const hours = Math.floor((totalMinutes % (24 * 60)) / 60);
+  const minutes = totalMinutes % 60;
+  const isUrgent = remainingMs <= URGENT_THRESHOLD_MS;
+
+  const segStyle = {
+    background: "linear-gradient(160deg, #2D2226, #1A1315)",
+    color: isUrgent ? "#FF8A6B" : "#FFD166",
+    borderRadius: 10,
+    padding: "8px 10px",
+    textAlign: "center",
+    minWidth: 44,
+    boxShadow: isUrgent
+      ? "0 3px 10px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.06), 0 0 14px rgba(255,138,107,0.25)"
+      : "0 3px 10px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.06), 0 0 14px rgba(255,209,102,0.18)",
+  };
+  const numStyle = {
+    fontSize: 18,
+    fontWeight: 900,
+    fontVariantNumeric: "tabular-nums",
+    lineHeight: 1,
+    textShadow: isUrgent ? "0 0 10px rgba(255,138,107,0.5)" : "0 0 10px rgba(255,209,102,0.4)",
+    letterSpacing: "-0.02em",
+  };
+  const unitStyle = {
+    fontSize: 7.5,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    opacity: 0.7,
+    marginTop: 3,
+    fontWeight: 700,
+    color: "#F4E4C1",
+  };
+  const colonStyle = { display: "flex", alignItems: "center", fontSize: 16, fontWeight: 900, color: "#D9C4A8", padding: "0 2px" };
+
+  return (
+    <div style={{ display: "inline-flex", gap: 5, alignItems: "center", marginTop: 6 }}>
+      <div style={segStyle}><div style={numStyle}>{String(days).padStart(2, "0")}</div><div style={unitStyle}>days</div></div>
+      <div style={colonStyle}>:</div>
+      <div style={segStyle}><div style={numStyle}>{String(hours).padStart(2, "0")}</div><div style={unitStyle}>hrs</div></div>
+      <div style={colonStyle}>:</div>
+      <div style={segStyle}><div style={numStyle}>{String(minutes).padStart(2, "0")}</div><div style={unitStyle}>min</div></div>
+    </div>
+  );
+}
+
+/**
+ * Large, always-urgent countdown for the VIP Starter retirement
+ * deadline — deliberately bigger and more alarming than PlanCountdown
+ * above (this is a one-time, business-critical cutoff, not a routine
+ * per-plan expiry), and ticks every SECOND since the deadline is under
+ * 24 hours away — a minute-granularity tick would feel sluggish for a
+ * countdown this close and this important. Always renders in the
+ * urgent red/orange palette (no green "plenty of time" state), since by
+ * definition every user seeing this banner is inside the final ~24h
+ * window — see isStarterDeadline in DashboardPage's investments
+ * calculation for the gating logic.
+ */
+function VipStarterDeadlineCountdown({ targetTs }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const remainingMs = Math.max(0, targetTs - now);
+  const totalSeconds = Math.floor(remainingMs / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  const segStyle = {
+    background: "linear-gradient(160deg, #4A1810, #2A0D0A)",
+    color: "#FF8A6B",
+    borderRadius: 14,
+    padding: "14px 16px",
+    textAlign: "center",
+    minWidth: 72,
+    boxShadow: "0 6px 16px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.08), 0 0 24px rgba(255,138,107,0.35)",
+  };
+  const numStyle = {
+    fontSize: 34,
+    fontWeight: 900,
+    fontVariantNumeric: "tabular-nums",
+    lineHeight: 1,
+    textShadow: "0 0 16px rgba(255,138,107,0.6)",
+    letterSpacing: "-0.02em",
+  };
+  const unitStyle = {
+    fontSize: 9,
+    textTransform: "uppercase",
+    letterSpacing: "0.1em",
+    opacity: 0.75,
+    marginTop: 5,
+    fontWeight: 800,
+    color: "#FFD1C2",
+  };
+  const colonStyle = { display: "flex", alignItems: "center", fontSize: 30, fontWeight: 900, color: "#FF8A6B", padding: "0 4px" };
+
+  return (
+    <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "center" }}>
+      <div style={segStyle}><div style={numStyle}>{String(hours).padStart(2, "0")}</div><div style={unitStyle}>hrs</div></div>
+      <div style={colonStyle}>:</div>
+      <div style={segStyle}><div style={numStyle}>{String(minutes).padStart(2, "0")}</div><div style={unitStyle}>min</div></div>
+      <div style={colonStyle}>:</div>
+      <div style={segStyle}><div style={numStyle}>{String(seconds).padStart(2, "0")}</div><div style={unitStyle}>sec</div></div>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const { user, refreshUser } = useAuth();
   const [deposits, setDeposits] = useState([]);
@@ -211,6 +344,12 @@ export default function DashboardPage() {
   // investment's earned days into matured (withdrawable) vs
   // still-maturing (task done, 24h timer not yet finished).
   const now = Date.now();
+  // VIP Starter (vip1) retirement deadline — a fixed, one-time business
+  // cutoff separate from and EARLIER than each plan's own 30-day cycle.
+  // Only vip1 plans are affected; every other tier keeps its normal
+  // 30-day expiry from calculateInvestmentEarnings untouched. Deadline:
+  // Wed, Aug 26, 2026, 12:00pm WAT (UTC+1) — 2026-08-26T11:00:00.000Z.
+  const VIP_STARTER_DEADLINE = new Date("2026-08-26T11:00:00.000Z").getTime();
   const investments = approved.map((d) => {
     const plan = VIPS[d.planId] || { label: d.planLabel, daily: d.planDaily, color: C.emerald };
     const reviewedDayCount = countReviewedEarningDays(d.approvedAt, now, completedReviewDays);
@@ -224,7 +363,25 @@ export default function DashboardPage() {
       reviewedDatesForInvestment,
       completedDayTimestamps
     );
-    return { ...d, plan, ...calc };
+    // A VIP Starter plan is force-closed at the retirement deadline even
+    // if its own 30-day cycle hasn't finished yet — the EARLIER of the
+    // two cutoffs wins. isExpired/planExpiresAt get overridden here
+    // rather than inside calculateInvestmentEarnings itself, since that
+    // function is generic to every plan and shouldn't carry a one-off,
+    // single-tier business rule. Already-matured withdrawableBalance is
+    // untouched either way — this only affects whether MORE profit can
+    // accrue going forward, same principle as the normal 30-day cap.
+    const isStarter = d.planId === "vip1";
+    const starterForceClosed = isStarter && now >= VIP_STARTER_DEADLINE;
+    const effectiveExpiresAt = isStarter ? Math.min(calc.planExpiresAt, VIP_STARTER_DEADLINE) : calc.planExpiresAt;
+    return {
+      ...d,
+      plan,
+      ...calc,
+      isExpired: calc.isExpired || starterForceClosed,
+      planExpiresAt: effectiveExpiresAt,
+      isStarterDeadline: isStarter && !calc.isExpired && now < VIP_STARTER_DEADLINE,
+    };
   });
 
   const totalInvested = investments.reduce((s, i) => s + i.amount, 0);
@@ -296,6 +453,33 @@ export default function DashboardPage() {
         />
         Dashboard
       </h2>
+
+      {investments.some((i) => i.isStarterDeadline) && (
+        <div
+          style={{
+            background: "linear-gradient(160deg, #3A1410, #2A0D0A)",
+            border: "1px solid rgba(255,138,107,0.35)",
+            borderRadius: 16,
+            padding: 20,
+            marginBottom: 18,
+            boxShadow: "0 6px 20px rgba(0,0,0,0.3), 0 0 30px rgba(255,138,107,0.12)",
+          }}
+        >
+          <div style={{ fontSize: 11, color: "#FF8A6B", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>
+            ⚠ VIP Starter is being retired
+          </div>
+          <div style={{ fontSize: 15, color: "#F4E4C1", fontWeight: 600, marginBottom: 14, lineHeight: 1.4 }}>
+            Your VIP Starter plan will close automatically at 12:00pm tomorrow. Migrate now to keep earning — you'll only pay the difference.
+          </div>
+          <VipStarterDeadlineCountdown targetTs={VIP_STARTER_DEADLINE} />
+          <button
+            style={{ ...buttonStyle("gold"), width: "100%", marginTop: 16, fontSize: 15, fontWeight: 800, padding: "14px" }}
+            onClick={openMigrate}
+          >
+            Migrate Now →
+          </button>
+        </div>
+      )}
 
       <WelcomeBanner />
 
@@ -498,7 +682,7 @@ export default function DashboardPage() {
                 <div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
                     <span style={chipStyle(inv.plan.color)}>{inv.plan.label}</span>
-                    <span style={chipStyle(C.green)}>ACTIVE</span>
+                    <span style={chipStyle(inv.isExpired ? C.dim : C.green)}>{inv.isExpired ? "CLOSED" : "ACTIVE"}</span>
                   </div>
                   <div style={{ fontSize: 12, color: inv.plan.color, fontWeight: 600 }}>
                     ₦{inv.plan.daily.toLocaleString()} daily earnings
@@ -506,8 +690,21 @@ export default function DashboardPage() {
                   <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>
                     Invested ₦{(inv.amount || 0).toLocaleString()} (locked) · Approved {fmtDate(inv.approvedAt)}
                   </div>
+                  {!inv.isExpired && inv.planExpiresAt && (
+                    <div>
+                      <div style={{ fontSize: 10, color: C.dim, marginTop: 8, textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 700 }}>
+                        Plan ends {fmtDate(inv.planExpiresAt)}
+                      </div>
+                      <PlanCountdown targetTs={inv.planExpiresAt} />
+                    </div>
+                  )}
+                  {inv.isExpired && (
+                    <div style={{ fontSize: 11, color: C.dim, marginTop: 6 }}>
+                      30-day cycle ended {fmtDate(inv.planExpiresAt)} — withdraw any remaining balance below.
+                    </div>
+                  )}
                   {inv.maturingEarnings > 0 && (
-                    <div style={{ fontSize: 11, color: C.gold || C.purple, marginTop: 4, fontWeight: 600 }}>
+                    <div style={{ fontSize: 11, color: C.gold || C.purple, marginTop: 8, fontWeight: 600 }}>
                       ₦{fmt(inv.maturingEarnings)} maturing
                       {inv.nextMaturityAt ? ` · next unlock ${fmtDate(inv.nextMaturityAt)} ${new Date(inv.nextMaturityAt).toLocaleTimeString("en-NG", { hour: "numeric", minute: "2-digit" })}` : ""}
                     </div>

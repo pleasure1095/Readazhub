@@ -194,9 +194,17 @@ export async function getAllDeposits() {
  * provided before calling this, streamlined from an earlier version that
  * also collected a sender name and free-text description.
  */
-export async function submitDeposit({ userId, userName, userEmail, planId, amountPaid, txRef, narrationCode, screenshotFile, upgradeFromDepositId, upgradeDiffAmount }) {
+export async function submitDeposit({ userId, userName, userEmail, planId, amountPaid, txRef, narrationCode, screenshotFile, upgradeFromDepositId, upgradeDiffAmount, expectedAmountPaid }) {
   const plan = VIPS[planId];
   if (!plan) throw new Error("Invalid VIP plan selected.");
+  // VIP Starter (vip1) is retired from new purchases — VIP Builder is
+  // now the minimum entry tier. This only blocks brand-new deposits;
+  // upgrading FROM an existing Starter plan still targets vip1 as the
+  // old plan (read, not purchased), so this check is scoped to
+  // non-upgrade submissions only.
+  if (planId === "vip1" && !upgradeFromDepositId) {
+    throw new Error("VIP Starter is no longer available for new deposits. Please choose VIP Builder or above.");
+  }
   if (!amountPaid || amountPaid <= 0) throw new Error("Enter the amount you paid.");
 
   const screenshotUrl = await uploadScreenshot(userId, screenshotFile);
@@ -212,6 +220,15 @@ export async function submitDeposit({ userId, userName, userEmail, planId, amoun
     planDaily: plan.daily,
     amount: plan.amount,
     amountPaid,
+    // The exact amount the user was shown/asked to send — the base plan
+    // price for a normal deposit, or the tier difference for an upgrade.
+    // Kept as its own field (rather than always reading `amount` or
+    // `upgradeDiffAmount` directly) so admin mismatch-checking
+    // (AdminDepositsPage.jsx) has one consistent field to compare
+    // amountPaid against regardless of deposit type. Falls back to the
+    // base amount if the modal didn't send one (defensive only — the
+    // current DepositModal always sends this).
+    expectedAmountPaid: expectedAmountPaid ?? (upgradeFromDepositId ? upgradeDiffAmount : plan.amount) ?? plan.amount,
     txRef: txRef?.trim() || "",
     narrationCode: narrationCode || "",
     screenshotUrl,
@@ -226,10 +243,9 @@ export async function submitDeposit({ userId, userName, userEmail, planId, amoun
     // second plan.
     upgradeFromDepositId: upgradeFromDepositId || null,
     // The DIFFERENCE the user was expected to pay for this upgrade
-    // (new tier amount − old tier amount), stored at submission time so
-    // the admin queue can show the correct expected amount without
-    // needing to look up the old deposit. null for a normal, non-upgrade
-    // deposit, where `amount` itself is already the expected figure.
+    // (new tier amount − old tier amount), kept for backward
+    // compatibility / display purposes ("upgrade difference" label).
+    // null for a normal, non-upgrade deposit.
     upgradeDiffAmount: upgradeFromDepositId ? (upgradeDiffAmount ?? null) : null,
   };
 

@@ -18,9 +18,22 @@ import {
 } from "firebase/firestore";
 import { auth, db } from "./firebase";
 import { genReferralCode } from "../utils/referral";
+import { isLaunchPauseActive } from "../utils/launchPause";
 
 const USERS_COLLECTION = "users";
-export const WELCOME_BONUS = 500;
+// CHANGED per the site owner, effective with the Aug 27, 2026 relaunch:
+// welcome bonus drops from ₦500 to ₦200. This is a TIME-GATED change,
+// not an immediate one — anyone signing up WHILE the launch pause is
+// still active keeps getting the old ₦500 (confirmed explicitly by the
+// site owner: "anyone signing up before the pause ends still gets
+// ₦500, only after the cutoff do new signups get ₦200"). This function
+// is evaluated fresh at the moment of each signup (see call site below,
+// inside registerUser), so it automatically flips to ₦200 for anyone
+// who signs up after LAUNCH_PAUSE_ENDS_AT passes — no manual toggle or
+// follow-up deploy needed at that time.
+function getWelcomeBonusAmount() {
+  return isLaunchPauseActive() ? 500 : 200;
+}
 
 /**
  * Fetches a user's Firestore profile document by uid.
@@ -108,14 +121,20 @@ export async function registerUser({ name, email, password, phone, refCode }) {
     // down (not recomputed) on withdrawal — see withdrawBonusBalance.
     referralBonusTotal: 0,
     rewardedDepositIds: [],
-    // ₦500 welcome bonus, credited once at registration only — existing
-    // users created before this feature don't have this field, which is
-    // intentional (confirmed: no retroactive credit for pre-existing
-    // accounts). Withdrawable identically to referral bonus earnings for
-    // balance and withdrawal purposes: always part of the overall withdrawable
-    // total, subject to the same ₦600 minimum withdrawal rule as
-    // everything else — not a separate pot with its own rules.
-    welcomeBonus: WELCOME_BONUS,
+    // Welcome bonus amount is TIME-GATED — see getWelcomeBonusAmount()
+    // above for the ₦500→₦200 relaunch pricing change. Evaluated fresh
+    // at the moment of THIS signup, not a fixed constant, so it's
+    // permanently locked in as whatever applied when this user joined
+    // (existing users' stored welcomeBonus never changes retroactively
+    // just because the rate changes for new signups afterward).
+    // Existing users created before this feature don't have this field
+    // at all, which is intentional (confirmed: no retroactive credit
+    // for pre-existing accounts). Withdrawable identically to referral
+    // bonus earnings for balance and withdrawal purposes: always part
+    // of the overall withdrawable total, subject to the same ₦600
+    // minimum withdrawal rule as everything else — not a separate pot
+    // with its own rules.
+    welcomeBonus: getWelcomeBonusAmount(),
     createdAt: Date.now(),
   };
 

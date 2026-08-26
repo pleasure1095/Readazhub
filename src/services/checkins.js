@@ -2,11 +2,21 @@ import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import { db } from "./firebase";
 import { MIN_WITHDRAWAL, validateWithdrawalAmount } from "../utils/earnings";
 import { createNotification } from "./notifications";
+import { isLaunchPauseActive, LAUNCH_PAUSE_ENDS_AT } from "../utils/launchPause";
 
 const CHECKINS_COLLECTION = "checkins";
-export const CHECKIN_DAILY_REWARD = 100;
+// CHANGED per the site owner: was ₦100/day, dropped to ₦50/day as part
+// of the Aug 27, 2026 relaunch pricing change. This constant is read
+// live by performCheckIn() below, so it automatically applies to every
+// check-in from the moment this file is deployed onward — there's no
+// separate "before/after launch" branching needed here the way there is
+// for WELCOME_BONUS in services/auth.js, because check-in is fully
+// BLOCKED during the pause (see performCheckIn) rather than staying
+// active at the old rate — so the old ₦100 rate can never actually be
+// paid out after this change ships, pause or no pause.
+export const CHECKIN_DAILY_REWARD = 50;
 export const CHECKIN_STREAK_TARGET = 7;
-export const CHECKIN_MAX_REWARD = CHECKIN_DAILY_REWARD * CHECKIN_STREAK_TARGET; // ₦700
+export const CHECKIN_MAX_REWARD = CHECKIN_DAILY_REWARD * CHECKIN_STREAK_TARGET; // ₦350
 
 // Uses WAT (UTC+1) as the reference timezone for "what day is it", staying
 // consistent with the withdrawal-hours convention used elsewhere in the
@@ -64,6 +74,16 @@ export async function getCheckInStatus(userId) {
  * longer gates or forfeits any money.
  */
 export async function performCheckIn(userId) {
+  // ONE-TIME LAUNCH PAUSE (see utils/launchPause.js) — daily check-in is
+  // frozen for every user until LAUNCH_PAUSE_ENDS_AT, per the site
+  // owner's explicit request. Matches the same pattern used for the
+  // reading task (services/reviews.js) and withdrawals
+  // (services/withdrawalRequests.js) during this window.
+  if (isLaunchPauseActive()) {
+    const hoursLeft = Math.ceil((LAUNCH_PAUSE_ENDS_AT - Date.now()) / (60 * 60 * 1000));
+    throw new Error(`Daily check-in is paused for launch. It resumes in about ${hoursLeft} hour${hoursLeft === 1 ? "" : "s"}.`);
+  }
+
   const status = await getCheckInStatus(userId);
   if (status.checkedInToday) return status;
 

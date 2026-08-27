@@ -35,7 +35,7 @@
 
 export const PER_DAY_MATURITY_DELAY_MS = 24 * 60 * 60 * 1000; // 24 hours
 
-export const MIN_WITHDRAWAL = 600;
+export const MIN_WITHDRAWAL = 400;
 
 /**
  * Given the WAT date strings that count as "reviewed" for a specific

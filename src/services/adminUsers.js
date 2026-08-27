@@ -181,6 +181,69 @@ export async function resetAllAccountsForFreshStart({ dryRun = true } = {}) {
   return summary;
 }
 
+/**
+ * PER-USER, PICK-YOUR-PARTS reset — lets an admin reset one user's
+ * check-in balance, reading history, referral bonus, and/or a specific
+ * deposit's earning clock independently, via checkboxes on the admin
+ * dashboard, rather than the all-or-nothing resetAllAccountsForFreshStart
+ * above. Per the site owner's explicit choice: welcomeBonus is NEVER
+ * touched by this function under any option — it's considered separate
+ * from deposit/earning resets and is only ever touched by the bulk
+ * Fresh Start tool.
+ *
+ * @param {string} userId
+ * @param {object} options
+ * @param {boolean} options.resetCheckIn - zero checkins/{userId}
+ *   unlockedBalance + lifetimeWithdrawn (streak/lastCheckIn untouched,
+ *   same scoping as the bulk reset — this only zeroes the money).
+ * @param {boolean} options.resetReadingTask - clear
+ *   reviews/{userId} completedDays/completedDayTimestamps/readArticleIds.
+ * @param {boolean} options.resetReferralBonus - zero this user's
+ *   referralBonusTotal + referralLifetimeWithdrawn on their users/{uid}
+ *   doc. Does NOT touch welcomeBonus/welcomeLifetimeWithdrawn.
+ * @param {string|null} options.depositIdToReset - if provided, resets
+ *   THAT SPECIFIC deposit's lifetimeWithdrawn → 0 and approvedAt → now
+ *   (restarting its 24h/30-day earning clock), matching exactly what
+ *   the bulk reset does per-deposit. Pass null/undefined to skip this
+ *   entirely — a user may have several approved deposits, and the site
+ *   owner confirmed this should target one at a time, not all of a
+ *   user's deposits at once.
+ */
+export async function resetUserEarnings(userId, { resetCheckIn = false, resetReadingTask = false, resetReferralBonus = false, depositIdToReset = null } = {}) {
+  const now = Date.now();
+  const actionsPerformed = [];
+
+  if (resetCheckIn) {
+    await setDoc(doc(db, CHECKINS_COLLECTION, userId), { unlockedBalance: 0, lifetimeWithdrawn: 0 }, { merge: true });
+    actionsPerformed.push("check-in balance");
+  }
+
+  if (resetReadingTask) {
+    await setDoc(
+      doc(db, REVIEWS_COLLECTION, userId),
+      { completedDays: [], completedDayTimestamps: {}, readArticleIds: [] },
+      { merge: true }
+    );
+    actionsPerformed.push("reading history");
+  }
+
+  if (resetReferralBonus) {
+    await setDoc(
+      doc(db, USERS_COLLECTION, userId),
+      { referralBonusTotal: 0, referralLifetimeWithdrawn: 0 },
+      { merge: true }
+    );
+    actionsPerformed.push("referral bonus");
+  }
+
+  if (depositIdToReset) {
+    await setDoc(doc(db, DEPOSITS_COLLECTION, depositIdToReset), { lifetimeWithdrawn: 0, approvedAt: now }, { merge: true });
+    actionsPerformed.push("deposit earning clock");
+  }
+
+  return { actionsPerformed };
+}
+
 export async function listAllUsers() {
   const q = query(collection(db, USERS_COLLECTION), orderBy("createdAt", "desc"));
   const snap = await getDocs(q);

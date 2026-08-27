@@ -5,6 +5,7 @@ import {
   updatePassword as fbUpdatePassword,
   reauthenticateWithCredential,
   EmailAuthProvider,
+  sendPasswordResetEmail,
 } from "firebase/auth";
 import {
   doc,
@@ -210,4 +211,25 @@ export async function reauthenticateUser(currentPassword) {
 export async function changePassword(newPassword) {
   if (!auth.currentUser) throw new Error("Not signed in.");
   await fbUpdatePassword(auth.currentUser, newPassword);
+}
+
+/**
+ * Sends a "forgot password" reset link to the given email, via Firebase
+ * Auth's built-in flow — for a user who is LOGGED OUT and can't remember
+ * their password at all (distinct from changePassword() above, which is
+ * for a logged-in user deliberately changing a password they still
+ * know). Firebase handles the actual email delivery, the reset-link
+ * page, and the password update itself; this app never sees or sets the
+ * new password directly.
+ *
+ * Deliberately does NOT throw or reveal whether the email exists in the
+ * system — Firebase's own client SDK behavior here already avoids
+ * leaking that (it resolves successfully even for an unregistered
+ * email, by design, to prevent using this form to enumerate valid
+ * accounts). The caller should always show the same "if that email is
+ * registered, a reset link is on its way" message regardless of the
+ * outcome, rather than branching UI on success/failure.
+ */
+export async function sendPasswordReset(email) {
+  await sendPasswordResetEmail(auth, email);
 }

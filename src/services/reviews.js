@@ -1,7 +1,6 @@
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "./firebase";
 import { getTodaysArticles } from "../utils/articles";
-import { isLaunchPauseActive, LAUNCH_PAUSE_ENDS_AT } from "../utils/launchPause";
 
 const REVIEWS_COLLECTION = "reviews";
 const RATING_COOLDOWN_MS = 24 * 60 * 60 * 1000;
@@ -120,17 +119,6 @@ export async function getReviewStatus(userId) {
  * directly.
  */
 export async function markArticleRead(userId, articleId) {
-  // ONE-TIME LAUNCH PAUSE (see utils/launchPause.js) — the daily reading
-  // task is frozen for every user until LAUNCH_PAUSE_ENDS_AT, per the
-  // site owner's explicit request for the Aug 26, 2026 relaunch. Checked
-  // first, before the existing cooldown check, so the error message is
-  // specific to the pause rather than a confusing generic cooldown
-  // message during this window.
-  if (isLaunchPauseActive()) {
-    const hoursLeft = Math.ceil((LAUNCH_PAUSE_ENDS_AT - Date.now()) / (60 * 60 * 1000));
-    throw new Error(`Earnings are paused for launch. Reading resumes in about ${hoursLeft} hour${hoursLeft === 1 ? "" : "s"}.`);
-  }
-
   const status = await getReviewStatus(userId);
   if (status.cooldownActive) {
     const hoursLeft = Math.ceil((status.cooldownEndsAt - Date.now()) / (60 * 60 * 1000));

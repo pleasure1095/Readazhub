@@ -11,7 +11,6 @@ import {
 import { db } from "./firebase";
 import { createNotification } from "./notifications";
 import { MIN_WITHDRAWAL } from "../utils/earnings";
-import { isLaunchPauseActive, LAUNCH_PAUSE_ENDS_AT } from "../utils/launchPause";
 
 const WITHDRAWAL_REQUESTS_COLLECTION = "withdrawalRequests";
 const DEPOSITS_COLLECTION = "deposits";
@@ -145,16 +144,6 @@ export async function requestCombinedWithdrawal({
   checkInBalance,
   checkInLifetimeWithdrawn,
 }) {
-  // ONE-TIME LAUNCH PAUSE (see utils/launchPause.js) — all withdrawals
-  // blocked for every user until LAUNCH_PAUSE_ENDS_AT, per the site
-  // owner's explicit request for the Aug 26, 2026 relaunch. Checked
-  // first, before the minimum-amount check, so this specific reason is
-  // shown rather than being masked by an unrelated validation error.
-  if (isLaunchPauseActive()) {
-    const hoursLeft = Math.ceil((LAUNCH_PAUSE_ENDS_AT - Date.now()) / (60 * 60 * 1000));
-    throw new Error(`Withdrawals are paused for launch. They resume in about ${hoursLeft} hour${hoursLeft === 1 ? "" : "s"}.`);
-  }
-
   if (!amount || amount < MIN_WITHDRAWAL) {
     throw new Error(`Minimum withdrawal is ₦${MIN_WITHDRAWAL.toLocaleString()}.`);
   }

@@ -2,7 +2,6 @@ import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import { db } from "./firebase";
 import { MIN_WITHDRAWAL, validateWithdrawalAmount } from "../utils/earnings";
 import { createNotification } from "./notifications";
-import { isLaunchPauseActive, LAUNCH_PAUSE_ENDS_AT } from "../utils/launchPause";
 
 const CHECKINS_COLLECTION = "checkins";
 // CHANGED per the site owner: was ₦100/day, dropped to ₦50/day as part
@@ -74,16 +73,6 @@ export async function getCheckInStatus(userId) {
  * longer gates or forfeits any money.
  */
 export async function performCheckIn(userId) {
-  // ONE-TIME LAUNCH PAUSE (see utils/launchPause.js) — daily check-in is
-  // frozen for every user until LAUNCH_PAUSE_ENDS_AT, per the site
-  // owner's explicit request. Matches the same pattern used for the
-  // reading task (services/reviews.js) and withdrawals
-  // (services/withdrawalRequests.js) during this window.
-  if (isLaunchPauseActive()) {
-    const hoursLeft = Math.ceil((LAUNCH_PAUSE_ENDS_AT - Date.now()) / (60 * 60 * 1000));
-    throw new Error(`Daily check-in is paused for launch. It resumes in about ${hoursLeft} hour${hoursLeft === 1 ? "" : "s"}.`);
-  }
-
   const status = await getCheckInStatus(userId);
   if (status.checkedInToday) return status;
 

@@ -94,7 +94,7 @@ export default function WelcomeModal({ userId, userName }) {
             paddingRight: 2,
           }}
         >
-          {VIP_LIST.map((plan) => (
+          {VIP_LIST.filter((plan) => plan.id !== "vip1").map((plan) => (
             <div
               key={plan.id}
               style={{

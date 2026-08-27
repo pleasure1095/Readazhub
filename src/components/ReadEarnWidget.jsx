@@ -11,6 +11,28 @@ function formatCooldownRemaining(cooldownEndsAt) {
   return `${minutes}m`;
 }
 
+// One color per article CATEGORY (not per article) — so the same
+// category always looks the same regardless of which day it appears,
+// rather than a random color that'd shift meaninglessly day to day.
+// Chosen to be distinguishable from each other at a glance and from the
+// widget's own crimson/gold theme. Falls back to a neutral gray for any
+// category not in this list, so a new/renamed category never breaks
+// rendering — it just won't stand out until added here.
+const CATEGORY_COLORS = {
+  Accessories: "#C77DFF",
+  Gadgets: "#4CC9F0",
+  Health: "#52B788",
+  Home: "#F4A261",
+  "Life Skills": "#E76F51",
+  Money: "#2ECC71",
+  Productivity: "#5390D9",
+  Tech: "#7B68EE",
+  Watches: "#D4A017",
+};
+function categoryColor(category) {
+  return CATEGORY_COLORS[category] || "#9A8C86";
+}
+
 /**
  * VIP-gated Read & Earn widget. Reading ALL of today's featured articles
  * unlocks that day's VIP earnings entirely — a confirmed, intentional
@@ -129,6 +151,7 @@ export default function ReadEarnWidget({ userId, isVipMember, onEarningsUnlocked
         {status.todaysArticles.map((a) => {
           const isRead = status.readArticleIds.includes(a.id);
           const isExpanded = expandedId === a.id;
+          const catColor = categoryColor(a.category);
           return (
             <div
               key={a.id}
@@ -139,6 +162,7 @@ export default function ReadEarnWidget({ userId, isVipMember, onEarningsUnlocked
                 padding: 12,
                 background: "rgba(36,28,32,0.035)",
                 borderRadius: 12,
+                borderLeft: `3px solid ${catColor}`,
                 opacity: cooldownActive ? 0.6 : 1,
               }}
             >
@@ -155,7 +179,8 @@ export default function ReadEarnWidget({ userId, isVipMember, onEarningsUnlocked
                     height: 44,
                     borderRadius: 10,
                     flexShrink: 0,
-                    background: "rgba(36,28,32,0.05)",
+                    background: `${catColor}22`,
+                    border: `1px solid ${catColor}40`,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -169,7 +194,7 @@ export default function ReadEarnWidget({ userId, isVipMember, onEarningsUnlocked
                     <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{a.title}</div>
                     {isRead && <span style={{ fontSize: 15, color: C.green, flexShrink: 0 }}>✓</span>}
                   </div>
-                  <div style={{ fontSize: 10, color: C.dim, marginBottom: 4 }}>
+                  <div style={{ fontSize: 10, color: catColor, fontWeight: 700, marginBottom: 4 }}>
                     {a.category} · {a.readMinutes} min read
                   </div>
                   {!isExpanded && <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.4 }}>{a.summary}</div>}

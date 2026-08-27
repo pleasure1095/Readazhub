@@ -1,4 +1,4 @@
-import { collection, getDocs, doc, updateDoc, getDoc, deleteDoc, runTransaction, query, where, orderBy } from "firebase/firestore";
+import { collection, getDocs, doc, setDoc, updateDoc, getDoc, deleteDoc, runTransaction, query, where, orderBy } from "firebase/firestore";
 import { db } from "./firebase";
 import { REFERRAL_LEVEL_1_PCT, REFERRAL_LEVEL_2_PCT } from "../utils/referralPlans";
 
@@ -145,34 +145,37 @@ export async function resetAllAccountsForFreshStart({ dryRun = true } = {}) {
   if (dryRun) return summary;
 
   for (const depDoc of approvedDeposits) {
-    await updateDoc(doc(db, DEPOSITS_COLLECTION, depDoc.id), {
-      lifetimeWithdrawn: 0,
-      approvedAt: now,
-    });
+    await setDoc(doc(db, DEPOSITS_COLLECTION, depDoc.id), { lifetimeWithdrawn: 0, approvedAt: now }, { merge: true });
   }
 
   for (const userDoc of usersSnap.docs) {
-    await updateDoc(doc(db, USERS_COLLECTION, userDoc.id), {
-      referralBonusTotal: 0,
-      welcomeBonus: FRESH_START_WELCOME_BONUS,
-      referralLifetimeWithdrawn: 0,
-      welcomeLifetimeWithdrawn: 0,
-    });
+    await setDoc(
+      doc(db, USERS_COLLECTION, userDoc.id),
+      {
+        referralBonusTotal: 0,
+        welcomeBonus: FRESH_START_WELCOME_BONUS,
+        referralLifetimeWithdrawn: 0,
+        welcomeLifetimeWithdrawn: 0,
+      },
+      { merge: true }
+    );
   }
 
   for (const checkinDoc of checkinsSnap.docs) {
-    await updateDoc(doc(db, CHECKINS_COLLECTION, checkinDoc.id), {
-      unlockedBalance: 0,
-      lifetimeWithdrawn: 0,
-    });
+    // setDoc + merge instead of updateDoc: updateDoc requires the target
+    // fields to already exist in a meaningful way and is less forgiving
+    // of any drift in document shape; setDoc-with-merge writes these
+    // fields regardless of the doc's current shape, so this can't
+    // silently no-op on an edge-case document the way updateDoc might.
+    await setDoc(doc(db, CHECKINS_COLLECTION, checkinDoc.id), { unlockedBalance: 0, lifetimeWithdrawn: 0 }, { merge: true });
   }
 
   for (const reviewDoc of reviewsSnap.docs) {
-    await updateDoc(doc(db, REVIEWS_COLLECTION, reviewDoc.id), {
-      completedDays: [],
-      completedDayTimestamps: {},
-      readArticleIds: [],
-    });
+    await setDoc(
+      doc(db, REVIEWS_COLLECTION, reviewDoc.id),
+      { completedDays: [], completedDayTimestamps: {}, readArticleIds: [] },
+      { merge: true }
+    );
   }
 
   return summary;

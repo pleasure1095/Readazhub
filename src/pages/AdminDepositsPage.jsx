@@ -6,6 +6,7 @@ import { listAllUsers, revertTodaysCompletionsForLaunchPause, resetAllAccountsFo
 import FormInput from "../components/FormInput";
 import { ErrorBox, SuccessBox } from "../components/MessageBox";
 import AdminCreateDepositModal from "../components/AdminCreateDepositModal";
+import AdminResetUserEarningsModal from "../components/AdminResetUserEarningsModal";
 
 function chipStyle(color) {
   return {
@@ -49,6 +50,7 @@ export default function AdminDepositsPage() {
   const [withdrawalRequests, setWithdrawalRequests] = useState([]);
   const [users, setUsers] = useState([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showResetUserModal, setShowResetUserModal] = useState(false);
   const [revertBusy, setRevertBusy] = useState(false);
   const [resetBusy, setResetBusy] = useState(false);
   const [resetPreview, setResetPreview] = useState(null);
@@ -257,6 +259,13 @@ export default function AdminDepositsPage() {
         + Create Deposit for User
       </button>
 
+      <button
+        style={{ ...buttonStyle("ghost"), marginBottom: 12 }}
+        onClick={() => setShowResetUserModal(true)}
+      >
+        Reset Earnings for One User
+      </button>
+
       <div style={{ marginBottom: 20 }}>
         <button
           style={{ ...buttonStyle("danger"), fontSize: 12.5 }}
@@ -330,6 +339,17 @@ export default function AdminDepositsPage() {
           onClose={() => setShowCreateModal(false)}
           onDone={() => {
             setOk("Deposit created and approved.");
+            load();
+          }}
+        />
+      )}
+
+      {showResetUserModal && (
+        <AdminResetUserEarningsModal
+          users={users}
+          onClose={() => setShowResetUserModal(false)}
+          onDone={() => {
+            setOk("Earnings reset for that user.");
             load();
           }}
         />

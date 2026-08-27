@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { C, buttonStyle, cardStyle, labelStyle } from "../styles/theme";
 import { getAllDeposits, approveDeposit, rejectDeposit } from "../services/deposits";
 import { getAllWithdrawalRequests, markCombinedWithdrawalPaid, rejectCombinedWithdrawal } from "../services/withdrawalRequests";
-import { listAllUsers, revertTodaysCompletionsForLaunchPause, resetAllAccountsForFreshStart } from "../services/adminUsers";
+import { listAllUsers, revertTodaysCompletionsForLaunchPause, resetAllAccountsForFreshStart, fixAllWelcomeBonusesTo350 } from "../services/adminUsers";
 import FormInput from "../components/FormInput";
 import { ErrorBox, SuccessBox } from "../components/MessageBox";
 import AdminCreateDepositModal from "../components/AdminCreateDepositModal";
@@ -55,6 +55,8 @@ export default function AdminDepositsPage() {
   const [resetBusy, setResetBusy] = useState(false);
   const [resetPreview, setResetPreview] = useState(null);
   const [resetConfirmText, setResetConfirmText] = useState("");
+  const [welcomeFixPreview, setWelcomeFixPreview] = useState(null);
+  const [welcomeFixBusy, setWelcomeFixBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("pending");
   const [notes, setNotes] = useState({});
@@ -206,6 +208,42 @@ export default function AdminDepositsPage() {
     setResetBusy(false);
   }
 
+  // ONE-TIME fix: forces every user's welcomeBonus to a flat ₦350,
+  // correcting the site owner's admitted mid-launch pricing change
+  // (₦500 → ₦200 → settled ₦350) where some users locked in ₦200 before
+  // ₦350 was decided. Same preview-then-confirm pattern as Fresh Start
+  // above, but via a plain confirm() since this only touches one field
+  // (lower stakes than the multi-collection Fresh Start reset).
+  async function handlePreviewWelcomeFix() {
+    setWelcomeFixBusy(true);
+    setErr("");
+    setOk("");
+    try {
+      const preview = await fixAllWelcomeBonusesTo350({ dryRun: true });
+      setWelcomeFixPreview(preview);
+    } catch (e) {
+      console.error(e);
+      setErr("Could not load welcome bonus fix preview.");
+    }
+    setWelcomeFixBusy(false);
+  }
+
+  async function handleConfirmWelcomeFix() {
+    if (!window.confirm(`Set welcomeBonus to ₦350 for ${welcomeFixPreview?.usersToFix ?? "all affected"} user(s)? This cannot be undone.`)) return;
+    setWelcomeFixBusy(true);
+    setErr("");
+    setOk("");
+    try {
+      const result = await fixAllWelcomeBonusesTo350({ dryRun: false });
+      setOk(`Welcome bonus fix complete — updated ${result.usersToFix} of ${result.totalUsers} user(s) to ₦350.`);
+      setWelcomeFixPreview(null);
+    } catch (e) {
+      console.error(e);
+      setErr("Could not complete the welcome bonus fix. Some users may be partially updated — check Firestore directly before retrying.");
+    }
+    setWelcomeFixBusy(false);
+  }
+
   let filtered = deposits.filter((d) => tab === "all" || d.status === tab);
   if (searchName.trim()) filtered = filtered.filter((d) => d.userName?.toLowerCase().includes(searchName.trim().toLowerCase()));
   if (searchEmail.trim()) filtered = filtered.filter((d) => d.userEmail?.toLowerCase().includes(searchEmail.trim().toLowerCase()));
@@ -326,6 +364,39 @@ export default function AdminDepositsPage() {
                 }}
                 disabled={resetBusy}
               >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div style={{ marginBottom: 20, padding: 14, border: `1px solid ${C.gold}`, borderRadius: 12, background: "rgba(185,121,28,0.04)" }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: C.gold, marginBottom: 4 }}>🔧 Fix: Welcome Bonus → ₦350 for Everyone</div>
+        <p style={{ fontSize: 11.5, color: C.muted, marginBottom: 10, lineHeight: 1.5 }}>
+          One-time correction for the mid-launch pricing change. Forces every user's welcome bonus to a flat ₦350, regardless of what they currently have (₦200, ₦500, or anything else). Nothing else is touched.
+        </p>
+
+        {!welcomeFixPreview && (
+          <button style={{ ...buttonStyle("gold"), fontSize: 12.5 }} onClick={handlePreviewWelcomeFix} disabled={welcomeFixBusy}>
+            {welcomeFixBusy ? "Loading preview…" : "Preview Welcome Bonus Fix"}
+          </button>
+        )}
+
+        {welcomeFixPreview && (
+          <div>
+            <div style={{ fontSize: 12.5, marginBottom: 10, lineHeight: 1.7 }}>
+              <strong>{welcomeFixPreview.usersToFix}</strong> of <strong>{welcomeFixPreview.totalUsers}</strong> user(s) will be updated to ₦350.
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                style={{ ...buttonStyle("gold"), fontSize: 12.5, flex: 1 }}
+                onClick={handleConfirmWelcomeFix}
+                disabled={welcomeFixBusy || welcomeFixPreview.usersToFix === 0}
+              >
+                {welcomeFixBusy ? "Fixing…" : `Confirm — Fix ${welcomeFixPreview.usersToFix} User(s)`}
+              </button>
+              <button style={{ ...buttonStyle("ghost"), fontSize: 12.5 }} onClick={() => setWelcomeFixPreview(null)} disabled={welcomeFixBusy}>
                 Cancel
               </button>
             </div>

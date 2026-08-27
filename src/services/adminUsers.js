@@ -76,6 +76,108 @@ export async function revertTodaysCompletionsForLaunchPause() {
  * user volumes; if the user base grows large, this should be paginated
  * (Firestore startAfter/limit) rather than loading everything at once.
  */
+/**
+ * ONE-TIME "Fresh Start" reset — per the site owner's explicit
+ * instruction for a relaunch: wipes accumulated EARNINGS across every
+ * user while deliberately preserving each user's VIP plan itself (the
+ * deposit record, its tier/amount/planId all stay exactly as they are).
+ *
+ * What this changes, per approved deposit:
+ *   - lifetimeWithdrawn → 0
+ *   - approvedAt → NOW — this is what "restarts the earning clock"
+ *     means concretely: both the 30-day plan cycle and the 24h-per-day
+ *     maturity math (calculateInvestmentEarnings, earnings.js) key off
+ *     approvedAt, so resetting it is the only way to zero out
+ *     accumulated/maturing profit without deleting the deposit.
+ *   - amount, planId, planDaily, userId, status: UNTOUCHED — the plan
+ *     and its principal survive the reset exactly as they were.
+ * Only deposits with status "approved" are touched — pending/rejected/
+ * superseded deposits are left alone (they have no earnings to reset).
+ *
+ * What this changes, per user document:
+ *   - referralBonusTotal → 0
+ *   - welcomeBonus → 350 (flat, matching the new relaunch amount — see
+ *     getWelcomeBonusAmount in services/auth.js for new-signup parity)
+ *   - referralLifetimeWithdrawn / welcomeLifetimeWithdrawn → 0
+ *
+ * What this changes, per checkins document:
+ *   - unlockedBalance → 0, lifetimeWithdrawn → 0 (streak/lastCheckIn
+ *     fields untouched — this only zeroes the MONEY, not check-in
+ *     history/streaks, since the reset is scoped to earnings only)
+ *
+ * What this changes, per reviews document:
+ *   - completedDays → [], completedDayTimestamps → {}, readArticleIds
+ *     → [] — full reading-history wipe, so no plan shows leftover
+ *     "already matured" days from before the reset once approvedAt
+ *     jumps to now.
+ *
+ * NOT touched by this function, ever: deposit records themselves are
+ * never deleted (kept for the site owner's own bookkeeping trail per
+ * their explicit instruction), and withdrawalRequests history is left
+ * fully intact as a permanent record of what was paid out before the
+ * reset.
+ *
+ * SAFETY: pass dryRun: true to get back exactly what WOULD change
+ * (counts only, zero writes) before running for real — given the scale
+ * and irreversibility of this operation, always dry-run first.
+ */
+export async function resetAllAccountsForFreshStart({ dryRun = true } = {}) {
+  const FRESH_START_WELCOME_BONUS = 350;
+  const now = Date.now();
+
+  const [depositsSnap, usersSnap, checkinsSnap, reviewsSnap] = await Promise.all([
+    getDocs(collection(db, DEPOSITS_COLLECTION)),
+    getDocs(collection(db, USERS_COLLECTION)),
+    getDocs(collection(db, CHECKINS_COLLECTION)),
+    getDocs(collection(db, REVIEWS_COLLECTION)),
+  ]);
+
+  const approvedDeposits = depositsSnap.docs.filter((d) => d.data().status === "approved");
+
+  const summary = {
+    depositsReset: approvedDeposits.length,
+    usersReset: usersSnap.docs.length,
+    checkinsReset: checkinsSnap.docs.length,
+    reviewsReset: reviewsSnap.docs.length,
+    dryRun,
+  };
+
+  if (dryRun) return summary;
+
+  for (const depDoc of approvedDeposits) {
+    await updateDoc(doc(db, DEPOSITS_COLLECTION, depDoc.id), {
+      lifetimeWithdrawn: 0,
+      approvedAt: now,
+    });
+  }
+
+  for (const userDoc of usersSnap.docs) {
+    await updateDoc(doc(db, USERS_COLLECTION, userDoc.id), {
+      referralBonusTotal: 0,
+      welcomeBonus: FRESH_START_WELCOME_BONUS,
+      referralLifetimeWithdrawn: 0,
+      welcomeLifetimeWithdrawn: 0,
+    });
+  }
+
+  for (const checkinDoc of checkinsSnap.docs) {
+    await updateDoc(doc(db, CHECKINS_COLLECTION, checkinDoc.id), {
+      unlockedBalance: 0,
+      lifetimeWithdrawn: 0,
+    });
+  }
+
+  for (const reviewDoc of reviewsSnap.docs) {
+    await updateDoc(doc(db, REVIEWS_COLLECTION, reviewDoc.id), {
+      completedDays: [],
+      completedDayTimestamps: {},
+      readArticleIds: [],
+    });
+  }
+
+  return summary;
+}
+
 export async function listAllUsers() {
   const q = query(collection(db, USERS_COLLECTION), orderBy("createdAt", "desc"));
   const snap = await getDocs(q);
@@ -254,19 +356,71 @@ export async function deleteUserAndReverseBonus(uid) {
     });
   }
 
-  await clawBack(target.referrerCode, REFERRAL_LEVEL_1_PCT);
-  await clawBack(target.referrerOfReferrerCode, REFERRAL_LEVEL_2_PCT);
+  // Clawbacks run BEFORE the user doc is deleted, but are independently
+  // fault-tolerant (each wrapped in its own try/catch) rather than
+  // letting one referrer-lookup failure abort the whole delete — a user
+  // with a bad/orphaned referrerCode shouldn't become undeletable.
+  // Failures here are collected and surfaced in the return value so the
+  // admin isn't silently left thinking a clawback happened when it
+  // didn't.
+  const clawbackErrors = [];
+  try {
+    await clawBack(target.referrerCode, REFERRAL_LEVEL_1_PCT);
+  } catch (e) {
+    console.error("Level 1 referral clawback failed:", e);
+    clawbackErrors.push("level1");
+  }
+  try {
+    await clawBack(target.referrerOfReferrerCode, REFERRAL_LEVEL_2_PCT);
+  } catch (e) {
+    console.error("Level 2 referral clawback failed:", e);
+    clawbackErrors.push("level2");
+  }
 
-  // Clean up every collection this user has a doc in. reviews/checkins
-  // are keyed by uid directly; deposits need a query since a user can
-  // have multiple. deleteDoc() is a no-op (does not throw) if a doc
-  // doesn't exist, so this is safe even for users who never checked in
-  // or never completed a review. Notifications and withdrawalRequests
-  // are left as historical records (same reasoning as elsewhere in this
-  // app — they're not spendable balances, just a log) rather than
-  // deleted.
-  await Promise.all(depositsSnap.docs.map((d) => deleteDoc(d.ref)));
-  await deleteDoc(doc(db, REVIEWS_COLLECTION, uid));
-  await deleteDoc(doc(db, CHECKINS_COLLECTION, uid));
+  // The user's OWN document is deleted FIRST, deliberately, before any
+  // of the related-collection cleanup below. This is the single change
+  // that actually makes them disappear from the admin Users list — if
+  // ANYTHING below this line throws (a deposit fails to delete, a
+  // network blip mid-loop), the user is still gone from every list and
+  // can't be mistaken for "not deleted." Previously this ran LAST, which
+  // meant a failure partway through cleanup could leave deposits/reviews
+  // already deleted while the user document itself — the thing that
+  // actually controls whether they show up anywhere — was untouched,
+  // making a real partial-delete look indistinguishable from "nothing
+  // happened" from the admin's point of view.
   await deleteDoc(doc(db, USERS_COLLECTION, uid));
+
+  // Everything below is best-effort cleanup of related collections.
+  // Each step is independently caught so one failure (e.g. a single
+  // deposit doc with a permissions quirk) doesn't leave the others
+  // undone — reviews/checkins are keyed by uid directly; deposits need
+  // a query since a user can have multiple. deleteDoc() is a no-op
+  // (does not throw) if a doc doesn't exist, so this is safe even for
+  // users who never checked in or never completed a review.
+  // Notifications and withdrawalRequests are left as historical records
+  // (same reasoning as elsewhere in this app — they're not spendable
+  // balances, just a log) rather than deleted.
+  const cleanupErrors = [];
+  const depositResults = await Promise.allSettled(depositsSnap.docs.map((d) => deleteDoc(d.ref)));
+  const failedDeposits = depositResults.filter((r) => r.status === "rejected").length;
+  if (failedDeposits > 0) {
+    console.error(`${failedDeposits} of ${depositsSnap.docs.length} deposit doc(s) failed to delete for uid ${uid}`);
+    cleanupErrors.push(`${failedDeposits} deposit(s)`);
+  }
+
+  try {
+    await deleteDoc(doc(db, REVIEWS_COLLECTION, uid));
+  } catch (e) {
+    console.error("Failed to delete reviews doc:", e);
+    cleanupErrors.push("reviews");
+  }
+
+  try {
+    await deleteDoc(doc(db, CHECKINS_COLLECTION, uid));
+  } catch (e) {
+    console.error("Failed to delete checkins doc:", e);
+    cleanupErrors.push("checkins");
+  }
+
+  return { deleted: true, clawbackErrors, cleanupErrors };
 }

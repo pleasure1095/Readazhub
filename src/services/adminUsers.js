@@ -244,6 +244,55 @@ export async function resetUserEarnings(userId, { resetCheckIn = false, resetRea
   return { actionsPerformed };
 }
 
+/**
+ * ONE-TIME data fix: forces EVERY user's welcomeBonus to a flat ₦350,
+ * regardless of their current value — per the site owner's explicit
+ * instruction, correcting an admitted mistake where the site owner
+ * changed the welcome-bonus amount mid-launch (₦500 → ₦200 → settled on
+ * ₦350) and some users had already signed up and locked in the ₦200
+ * value before the final ₦350 amount was decided.
+ *
+ * Deliberately does NOT touch welcomeLifetimeWithdrawn — if a user
+ * somehow already withdrew part of their welcome bonus before this fix
+ * runs, forcibly resetting welcomeBonus to ₦350 without adjusting what
+ * they've already withdrawn could let them withdraw ₦350 again on top
+ * of what they already took out. Left as a known edge case the site
+ * owner should be aware of rather than silently "fixed" with an
+ * assumption about what they'd want (see also: the withdrawable amount
+ * for welcome bonus is welcomeBonus - welcomeLifetimeWithdrawn, so if
+ * this edge case matters, checking welcomeLifetimeWithdrawn per user
+ * before running this is worth doing).
+ *
+ * Uses setDoc-with-merge (not updateDoc) for the same reason established
+ * in resetAllAccountsForFreshStart above — see that function's writes
+ * for why, and the Firestore rules fix in firebase/firestore.rules that
+ * this depends on (users/{uid} already has an isAdmin() bypass, unlike
+ * the checkins/reviews collections that needed a separate rules fix).
+ *
+ * SAFETY: pass dryRun: true (the default) to preview the count of users
+ * that would be changed, with zero writes, before running for real.
+ */
+export async function fixAllWelcomeBonusesTo350({ dryRun = true } = {}) {
+  const FIXED_WELCOME_BONUS = 350;
+  const usersSnap = await getDocs(collection(db, USERS_COLLECTION));
+
+  const usersToFix = usersSnap.docs.filter((d) => (d.data().welcomeBonus || 0) !== FIXED_WELCOME_BONUS);
+
+  const summary = {
+    totalUsers: usersSnap.docs.length,
+    usersToFix: usersToFix.length,
+    dryRun,
+  };
+
+  if (dryRun) return summary;
+
+  for (const userDoc of usersToFix) {
+    await setDoc(doc(db, USERS_COLLECTION, userDoc.id), { welcomeBonus: FIXED_WELCOME_BONUS }, { merge: true });
+  }
+
+  return summary;
+}
+
 export async function listAllUsers() {
   const q = query(collection(db, USERS_COLLECTION), orderBy("createdAt", "desc"));
   const snap = await getDocs(q);

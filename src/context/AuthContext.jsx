@@ -9,6 +9,7 @@ import {
   updateUserProfile,
   changePassword,
   saveBankDetails,
+  sendPasswordReset,
 } from "../services/auth";
 
 const AuthContext = createContext(null);
@@ -79,6 +80,14 @@ export function AuthProvider({ children }) {
     await changePassword(newPassword);
   }
 
+  // Logged-OUT forgot-password flow — distinct from updatePassword above.
+  // No local state to update here since the user isn't authenticated yet
+  // and won't be until they follow the emailed link and come back to log
+  // in normally.
+  async function forgotPassword(email) {
+    await sendPasswordReset(email);
+  }
+
   const value = {
     user,
     booting,
@@ -89,6 +98,7 @@ export function AuthProvider({ children }) {
     updateProfile,
     updateSavedBankDetails,
     updatePassword,
+    forgotPassword,
     // Exposed so components can refresh the profile after external writes
     // (e.g. after an admin approves a deposit and credits a referral bonus).
     refreshUser: async () => {

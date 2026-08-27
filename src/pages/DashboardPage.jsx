@@ -4,7 +4,6 @@ import { C, buttonStyle, cardStyle } from "../styles/theme";
 import { VIPS, VIP_LIST } from "../utils/vipPlans";
 import { calculateInvestmentEarnings, isEarningToday } from "../utils/earnings";
 import { isWithinWithdrawalHours, WHATSAPP_GROUP_LINK } from "../utils/paymentInfo";
-import { isLaunchPauseActive, LAUNCH_PAUSE_ENDS_AT } from "../utils/launchPause";
 import { getUserDeposits } from "../services/deposits";
 import { getReviewStatus, countReviewedEarningDays, getReviewedDatesForInvestment } from "../services/reviews";
 import { getCheckInStatus } from "../services/checkins";
@@ -84,85 +83,6 @@ function MaturityCountdown({ targetTs, style }) {
  * for what's likely to be several of these rendered at once if a user
  * has multiple plans.
  */
-/**
- * ONE-TIME launch-pause banner (see utils/launchPause.js) — shown only
- * to already-upgraded VIP members while the Aug 26, 2026 relaunch pause
- * is active. Counts down to LAUNCH_PAUSE_ENDS_AT, then this component
- * naturally stops rendering anything (isLaunchPauseActive() returns
- * false) — no manual cleanup needed after launch.
- *
- * Deliberately always uses the "urgent" red/orange color scheme from
- * the countdown segments below (unlike PlanCountdown, which only turns
- * urgent in the final 3 days) — a launch pause is inherently something
- * that deserves attention regardless of how much time is left on it.
- */
-function LaunchPauseBanner() {
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, []);
-
-  if (!isLaunchPauseActive(now)) return null;
-
-  const remainingMs = LAUNCH_PAUSE_ENDS_AT - now;
-  const totalSeconds = Math.max(0, Math.floor(remainingMs / 1000));
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-
-  const segStyle = {
-    background: "linear-gradient(160deg, #2D2226, #1A1315)",
-    color: "#FF8A6B",
-    borderRadius: 10,
-    padding: "8px 10px",
-    textAlign: "center",
-    minWidth: 44,
-    boxShadow: "0 3px 10px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.06), 0 0 14px rgba(255,138,107,0.25)",
-  };
-  const numStyle = {
-    fontSize: 18,
-    fontWeight: 900,
-    fontVariantNumeric: "tabular-nums",
-    lineHeight: 1,
-    textShadow: "0 0 10px rgba(255,138,107,0.5)",
-    letterSpacing: "-0.02em",
-  };
-  const unitStyle = {
-    fontSize: 7.5,
-    textTransform: "uppercase",
-    letterSpacing: "0.08em",
-    opacity: 0.7,
-    marginTop: 3,
-    fontWeight: 700,
-    color: "#F4E4C1",
-  };
-  const colonStyle = { display: "flex", alignItems: "center", fontSize: 16, fontWeight: 900, color: "#D9C4A8", padding: "0 2px" };
-
-  return (
-    <div
-      style={{
-        background: "linear-gradient(135deg, rgba(255,138,107,0.1), rgba(255,138,107,0.03))",
-        border: "1px solid rgba(255,138,107,0.3)",
-        borderRadius: 16,
-        padding: 16,
-        marginBottom: 16,
-      }}
-    >
-      <div style={{ fontSize: 13.5, fontWeight: 800, color: C.text, marginBottom: 2 }}>🚀 Launching Soon</div>
-      <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>
-        Earnings and withdrawals are paused for launch. Everything resumes automatically when the countdown ends.
-      </div>
-      <div style={{ display: "inline-flex", gap: 5, alignItems: "center" }}>
-        <div style={segStyle}><div style={numStyle}>{String(hours).padStart(2, "0")}</div><div style={unitStyle}>hrs</div></div>
-        <div style={colonStyle}>:</div>
-        <div style={segStyle}><div style={numStyle}>{String(minutes).padStart(2, "0")}</div><div style={unitStyle}>min</div></div>
-        <div style={colonStyle}>:</div>
-        <div style={segStyle}><div style={numStyle}>{String(seconds).padStart(2, "0")}</div><div style={unitStyle}>sec</div></div>
-      </div>
-    </div>
-  );
-}
 
 const URGENT_THRESHOLD_MS = 3 * 24 * 60 * 60 * 1000; // last 3 days
 function PlanCountdown({ targetTs }) {
@@ -570,7 +490,6 @@ export default function DashboardPage() {
 
       <WelcomeBanner />
 
-      {isVipMember && <LaunchPauseBanner />}
 
       {pending.length > 0 && (
         <div

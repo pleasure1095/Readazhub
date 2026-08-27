@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { C, buttonStyle, cardStyle } from "../styles/theme";
 import { getAllDeposits } from "../services/deposits";
+import { listAllUsers } from "../services/adminUsers";
+import { getCheckInStatus } from "../services/checkins";
 import { getReviewStatus, countReviewedEarningDays, getReviewedDatesForInvestment } from "../services/reviews";
 import { calculateInvestmentEarnings } from "../utils/earnings";
 import { getAllWithdrawalRequests, markCombinedWithdrawalPaid, rejectCombinedWithdrawal } from "../services/withdrawalRequests";
@@ -57,6 +59,7 @@ export default function AdminEarningsPage() {
   const [readStats, setReadStats] = useState(null);
   const [withdrawalRequests, setWithdrawalRequests] = useState([]);
   const [busyId, setBusyId] = useState(null);
+  const [bonusTotals, setBonusTotals] = useState({ referral: 0, welcome: 0, checkin: 0, checkinWithdrawn: 0, referralWithdrawn: 0, welcomeWithdrawn: 0 });
 
   async function load() {
     setLoading(true);
@@ -65,6 +68,47 @@ export default function AdminEarningsPage() {
     try {
       const allDeposits = await getAllDeposits();
       const approved = allDeposits.filter((d) => d.status === "approved");
+
+      // Referral bonus, welcome bonus, and check-in balance are all
+      // separate, already-withdrawable balances that don't live on the
+      // deposit/investment records above — pulled in here so the totals
+      // at the top of this page reflect EVERYTHING an admin might be
+      // asked about, not just VIP investment profit.
+      try {
+        const allUsers = await listAllUsers();
+        let referralSum = 0;
+        let welcomeSum = 0;
+        let referralWithdrawnSum = 0;
+        let welcomeWithdrawnSum = 0;
+        allUsers.forEach((u) => {
+          referralSum += u.referralBonusTotal || 0;
+          welcomeSum += u.welcomeBonus || 0;
+          referralWithdrawnSum += u.referralLifetimeWithdrawn || 0;
+          welcomeWithdrawnSum += u.welcomeLifetimeWithdrawn || 0;
+        });
+
+        const checkinResults = await Promise.all(
+          allUsers.map((u) => getCheckInStatus(u.uid).catch(() => null))
+        );
+        let checkinSum = 0;
+        let checkinWithdrawnSum = 0;
+        checkinResults.forEach((c) => {
+          if (!c) return;
+          checkinSum += c.unlockedBalance || 0;
+          checkinWithdrawnSum += c.lifetimeWithdrawn || 0;
+        });
+
+        setBonusTotals({
+          referral: referralSum,
+          welcome: welcomeSum,
+          checkin: Math.max(0, checkinSum - checkinWithdrawnSum),
+          checkinWithdrawn: checkinWithdrawnSum,
+          referralWithdrawn: referralWithdrawnSum,
+          welcomeWithdrawn: welcomeWithdrawnSum,
+        });
+      } catch (e) {
+        console.error("Failed to load bonus totals:", e);
+      }
 
       // Combined withdrawal requests now live in their own collection
       // (withdrawalRequests) rather than being tagged onto a single
@@ -188,8 +232,8 @@ export default function AdminEarningsPage() {
   }
 
   const totals = {
-    withdrawable: investments.reduce((s, i) => s + i.withdrawableBalance, 0),
-    lifetimeWithdrawn: investments.reduce((s, i) => s + (i.lifetimeWithdrawn || 0), 0),
+    withdrawable: investments.reduce((s, i) => s + i.withdrawableBalance, 0) + bonusTotals.referral + bonusTotals.welcome + bonusTotals.checkin,
+    lifetimeWithdrawn: investments.reduce((s, i) => s + (i.lifetimeWithdrawn || 0), 0) + bonusTotals.checkinWithdrawn + bonusTotals.referralWithdrawn + bonusTotals.welcomeWithdrawn,
     lifetimeDeposited: investments.reduce((s, i) => s + (i.amount || 0), 0),
     missed: investments.reduce((s, i) => s + i.missedEarnings, 0),
   };
@@ -201,6 +245,13 @@ export default function AdminEarningsPage() {
       <h1 style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>Earnings Overview</h1>
       <p style={{ fontSize: 13, color: C.muted, marginBottom: 8 }}>
         Live per-investment earnings — matches exactly what each user sees on their own dashboard.
+        Totals below combine VIP profit, referral bonus, welcome bonus, and check-in balance.
+      </p>
+      <p style={{ fontSize: 11, color: C.dim, marginBottom: 8 }}>
+        Available now — Referral: ₦{fmt(bonusTotals.referral)} · Welcome: ₦{fmt(bonusTotals.welcome)} · Check-in: ₦{fmt(bonusTotals.checkin)}
+      </p>
+      <p style={{ fontSize: 11, color: C.dim, marginBottom: 8 }}>
+        Already withdrawn — Referral: ₦{fmt(bonusTotals.referralWithdrawn)} · Welcome: ₦{fmt(bonusTotals.welcomeWithdrawn)} · Check-in: ₦{fmt(bonusTotals.checkinWithdrawn)}
       </p>
       {readStats && (
         <p style={{ fontSize: 10.5, color: C.dim, marginBottom: 20 }}>

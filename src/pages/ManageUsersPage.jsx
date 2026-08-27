@@ -79,8 +79,13 @@ export default function ManageUsersPage() {
     setBusyUid(u.uid);
     setConfirmDeleteUid(null);
     try {
-      await deleteUserAndReverseBonus(u.uid);
-      setOk(`${u.name} deleted. Any referral bonus their deposits generated has been reversed.`);
+      const result = await deleteUserAndReverseBonus(u.uid);
+      const issues = [...result.clawbackErrors, ...result.cleanupErrors];
+      if (issues.length > 0) {
+        setOk(`${u.name} deleted, but some cleanup steps had issues (${issues.join(", ")}) — check Firestore directly if needed.`);
+      } else {
+        setOk(`${u.name} deleted. Any referral bonus their deposits generated has been reversed.`);
+      }
       await load();
     } catch (e) {
       console.error(e);

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { C, buttonStyle, cardStyle, labelStyle } from "../styles/theme";
 import { getAllDeposits, approveDeposit, rejectDeposit } from "../services/deposits";
 import { getAllWithdrawalRequests, markCombinedWithdrawalPaid, rejectCombinedWithdrawal } from "../services/withdrawalRequests";
-import { listAllUsers, revertTodaysCompletionsForLaunchPause } from "../services/adminUsers";
+import { listAllUsers, revertTodaysCompletionsForLaunchPause, resetAllAccountsForFreshStart } from "../services/adminUsers";
 import FormInput from "../components/FormInput";
 import { ErrorBox, SuccessBox } from "../components/MessageBox";
 import AdminCreateDepositModal from "../components/AdminCreateDepositModal";
@@ -50,6 +50,9 @@ export default function AdminDepositsPage() {
   const [users, setUsers] = useState([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [revertBusy, setRevertBusy] = useState(false);
+  const [resetBusy, setResetBusy] = useState(false);
+  const [resetPreview, setResetPreview] = useState(null);
+  const [resetConfirmText, setResetConfirmText] = useState("");
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("pending");
   const [notes, setNotes] = useState({});
@@ -159,6 +162,48 @@ export default function AdminDepositsPage() {
     setRevertBusy(false);
   }
 
+  // ONE-TIME "Fresh Start" reset — see resetAllAccountsForFreshStart in
+  // services/adminUsers.js for exactly what this touches. Two-step by
+  // design given the stakes (real balances, across every user, no
+  // undo): first a dry run to show counts, then a typed confirmation
+  // phrase (not just a window.confirm, which is too easy to click
+  // through by reflex) before anything actually writes.
+  async function handlePreviewReset() {
+    setResetBusy(true);
+    setErr("");
+    setOk("");
+    try {
+      const preview = await resetAllAccountsForFreshStart({ dryRun: true });
+      setResetPreview(preview);
+    } catch (e) {
+      console.error(e);
+      setErr("Could not load reset preview.");
+    }
+    setResetBusy(false);
+  }
+
+  async function handleConfirmReset() {
+    if (resetConfirmText.trim().toUpperCase() !== "RESET EARNINGS") {
+      setErr('Type "RESET EARNINGS" exactly to confirm.');
+      return;
+    }
+    setResetBusy(true);
+    setErr("");
+    setOk("");
+    try {
+      const result = await resetAllAccountsForFreshStart({ dryRun: false });
+      setOk(
+        `Fresh Start complete — reset ${result.depositsReset} deposit(s), ${result.usersReset} user(s), ${result.checkinsReset} check-in record(s), ${result.reviewsReset} reading-history record(s).`
+      );
+      setResetPreview(null);
+      setResetConfirmText("");
+    } catch (e) {
+      console.error(e);
+      setErr("Could not complete the Fresh Start reset. Some records may be partially updated — check Firestore directly before retrying.");
+    }
+    setResetBusy(false);
+  }
+
   let filtered = deposits.filter((d) => tab === "all" || d.status === tab);
   if (searchName.trim()) filtered = filtered.filter((d) => d.userName?.toLowerCase().includes(searchName.trim().toLowerCase()));
   if (searchEmail.trim()) filtered = filtered.filter((d) => d.userEmail?.toLowerCase().includes(searchEmail.trim().toLowerCase()));
@@ -223,6 +268,60 @@ export default function AdminDepositsPage() {
         <p style={{ fontSize: 11, color: C.dim, marginTop: 6 }}>
           One-time fix for the Aug 26 launch pause — removes today's reading-task completion for every user who did it before the pause went live. Safe to click more than once.
         </p>
+      </div>
+
+      <div style={{ marginBottom: 20, padding: 14, border: `1px solid ${C.red}`, borderRadius: 12, background: "rgba(194,59,46,0.04)" }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: C.red, marginBottom: 4 }}>⚠ Fresh Start — Reset All Earnings</div>
+        <p style={{ fontSize: 11.5, color: C.muted, marginBottom: 10, lineHeight: 1.5 }}>
+          One-time relaunch reset. Zeroes withdrawn history and restarts the earning clock on every approved VIP plan (plans/tiers themselves are kept), zeroes referral and check-in balances, sets every user's welcome bonus to a flat ₦350, and wipes reading-day history. Deposit records are kept for your own bookkeeping — nothing is deleted. This cannot be undone.
+        </p>
+
+        {!resetPreview && (
+          <button style={{ ...buttonStyle("danger"), fontSize: 12.5 }} onClick={handlePreviewReset} disabled={resetBusy}>
+            {resetBusy ? "Loading preview…" : "Preview Fresh Start Reset"}
+          </button>
+        )}
+
+        {resetPreview && (
+          <div>
+            <div style={{ fontSize: 12.5, marginBottom: 10, lineHeight: 1.7 }}>
+              This will reset:
+              <br />• <strong>{resetPreview.depositsReset}</strong> approved deposit(s)
+              <br />• <strong>{resetPreview.usersReset}</strong> user(s)
+              <br />• <strong>{resetPreview.checkinsReset}</strong> check-in record(s)
+              <br />• <strong>{resetPreview.reviewsReset}</strong> reading-history record(s)
+            </div>
+            <label style={{ fontSize: 11.5, color: C.muted, display: "block", marginBottom: 6 }}>
+              Type <strong>RESET EARNINGS</strong> to confirm:
+            </label>
+            <FormInput
+              type="text"
+              value={resetConfirmText}
+              onChange={(e) => setResetConfirmText(e.target.value)}
+              placeholder="RESET EARNINGS"
+            />
+            <div style={{ height: 10 }} />
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                style={{ ...buttonStyle("danger"), fontSize: 12.5, flex: 1 }}
+                onClick={handleConfirmReset}
+                disabled={resetBusy || resetConfirmText.trim().toUpperCase() !== "RESET EARNINGS"}
+              >
+                {resetBusy ? "Resetting…" : "Confirm — Reset Everyone Now"}
+              </button>
+              <button
+                style={{ ...buttonStyle("ghost"), fontSize: 12.5 }}
+                onClick={() => {
+                  setResetPreview(null);
+                  setResetConfirmText("");
+                }}
+                disabled={resetBusy}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {showCreateModal && (

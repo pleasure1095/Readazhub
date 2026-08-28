@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { C, buttonStyle, cardStyle } from "../styles/theme";
 import FormInput from "../components/FormInput";
-import { listAllUsers, setUserRole, deleteUserAndReverseBonus } from "../services/adminUsers";
+import { listAllUsers, setUserRole, deleteUserAndReverseBonus, creditManualBonus } from "../services/adminUsers";
 
 function chipStyle(color) {
   return {
@@ -32,6 +32,12 @@ export default function ManageUsersPage() {
   // for the full clawback + cleanup it performs), so a single accidental
   // tap should never be enough to trigger it.
   const [confirmDeleteUid, setConfirmDeleteUid] = useState(null);
+  // Which user's "Credit Bonus" input is currently open (uid), and the
+  // raw text they've typed into it — keyed by uid rather than a single
+  // shared value so switching between users' cards mid-entry doesn't
+  // silently mix up whose amount is whose.
+  const [creditOpenUid, setCreditOpenUid] = useState(null);
+  const [creditAmount, setCreditAmount] = useState("");
 
   async function load() {
     setLoading(true);
@@ -90,6 +96,28 @@ export default function ManageUsersPage() {
     } catch (e) {
       console.error(e);
       setErr("Could not delete user.");
+    }
+    setBusyUid(null);
+  }
+
+  async function handleCreditBonus(u) {
+    const amount = Number(creditAmount);
+    if (!amount || amount <= 0 || Number.isNaN(amount)) {
+      setErr("Enter a valid amount greater than 0.");
+      return;
+    }
+    setErr("");
+    setOk("");
+    setBusyUid(u.uid);
+    try {
+      await creditManualBonus(u.uid, amount);
+      setOk(`₦${amount.toLocaleString()} credited to ${u.name}'s withdrawable balance.`);
+      setCreditOpenUid(null);
+      setCreditAmount("");
+      await load();
+    } catch (e) {
+      console.error(e);
+      setErr("Could not credit balance.");
     }
     setBusyUid(null);
   }
@@ -181,6 +209,62 @@ export default function ManageUsersPage() {
                   >
                     {busyUid === u.uid ? "Updating…" : u.role === "admin" ? "Remove Admin" : "Make Admin"}
                   </button>
+                </div>
+
+                {/* Manual compensation credit — e.g. paying a user for a
+                    genuinely missed reading day (site owner's stated use
+                    case). Adds a raw admin-entered ₦ amount directly to
+                    welcomeBonus (see creditManualBonus in
+                    services/adminUsers.js for why welcomeBonus
+                    specifically) — it becomes part of the user's normal
+                    withdrawable total immediately, with no separate line
+                    item shown anywhere (confirmed acceptable — a combined
+                    balance was chosen over a labeled "manual credit"
+                    entry). Not tied to any specific VIP plan/investment. */}
+                <div style={{ marginTop: 10 }}>
+                  {creditOpenUid === u.uid ? (
+                    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                      <FormInput
+                        type="number"
+                        inputMode="decimal"
+                        placeholder="Amount (₦)"
+                        value={creditAmount}
+                        onChange={(e) => setCreditAmount(e.target.value)}
+                        style={{ maxWidth: 140, padding: "8px 12px", fontSize: 12.5 }}
+                        autoFocus
+                      />
+                      <button
+                        style={{ ...buttonStyle("gold"), fontSize: 11.5, padding: "7px 14px" }}
+                        onClick={() => handleCreditBonus(u)}
+                        disabled={busyUid === u.uid}
+                      >
+                        {busyUid === u.uid ? "Crediting…" : "Confirm"}
+                      </button>
+                      <span
+                        style={{ fontSize: 11.5, color: C.dim, fontWeight: 700, cursor: "pointer" }}
+                        onClick={() => {
+                          setCreditOpenUid(null);
+                          setCreditAmount("");
+                          setErr("");
+                        }}
+                      >
+                        Cancel
+                      </span>
+                    </div>
+                  ) : (
+                    <button
+                      style={{ ...buttonStyle("ghost"), fontSize: 11.5, padding: "7px 14px" }}
+                      onClick={() => {
+                        setCreditOpenUid(u.uid);
+                        setCreditAmount("");
+                        setErr("");
+                        setOk("");
+                      }}
+                      disabled={busyUid === u.uid}
+                    >
+                      Credit Bonus
+                    </button>
+                  )}
                 </div>
 
                 {/* Delete is separate from Make/Remove Admin above and

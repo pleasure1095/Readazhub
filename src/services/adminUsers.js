@@ -450,6 +450,44 @@ export async function withdrawBonusBalance(uid, amount) {
 }
 
 /**
+ * Admin "credit missed-day compensation" action — adds a raw ₦ amount
+ * directly to a user's welcomeBonus field.
+ *
+ * WHY welcomeBonus AND NOT A NEW FIELD: this credit is meant to become
+ * spendable immediately, merged into the user's existing withdrawable
+ * total, with no separate line item (confirmed with the site owner — a
+ * combined balance is simpler for the user than a visibly separate
+ * "manual credit" entry). welcomeBonus already flows through every piece
+ * of plumbing that needs to exist for that: DashboardPage.jsx's
+ * withdrawable-total calculation, the combined bonus withdrawal modal,
+ * and withdrawBonusBalance() above. Inventing a third parallel balance
+ * field would require duplicating all of that wiring for no visible
+ * benefit to the user. The tradeoff (accepted): once credited, this ₦
+ * amount is indistinguishable from an ordinary welcome bonus in the
+ * user's own view — if you need a record of WHY a specific credit was
+ * given, keep that note outside the app (e.g. this chat) rather than
+ * relying on the app to show it.
+ *
+ * Not tied to any specific deposit/investment — this intentionally does
+ * NOT touch lifetimeWithdrawn or approvedAt on any deposit, since the
+ * site owner confirmed this credit isn't linked to one particular VIP
+ * plan's daily rate.
+ *
+ * amount must be a positive number — this function only ever adds; use
+ * withdrawBonusBalance (spend) or a direct Firestore edit for the reverse.
+ */
+export async function creditManualBonus(uid, amount) {
+  if (!amount || amount <= 0) throw new Error("Amount must be greater than 0.");
+  const userRef = doc(db, USERS_COLLECTION, uid);
+  await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(userRef);
+    if (!snap.exists()) throw new Error("User not found.");
+    const currentWelcomeBonus = snap.data().welcomeBonus || 0;
+    transaction.update(userRef, { welcomeBonus: currentWelcomeBonus + amount });
+  });
+}
+
+/**
  * Deletes a user AND reverses any referral bonus their approved deposits
  * generated for their Level 1 / Level 2 referrer(s), so a removed user
  * never leaves a "phantom" bonus behind on their referrer's balance.

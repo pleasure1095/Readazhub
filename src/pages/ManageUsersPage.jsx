@@ -117,7 +117,7 @@ export default function ManageUsersPage() {
       await load();
     } catch (e) {
       console.error(e);
-      setErr("Could not credit balance.");
+      setErr(`Could not credit balance. (${e.code || e.message || "unknown error"})`);
     }
     setBusyUid(null);
   }

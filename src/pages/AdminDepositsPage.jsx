@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { C, buttonStyle, cardStyle, labelStyle } from "../styles/theme";
 import { getAllDeposits, approveDeposit, rejectDeposit } from "../services/deposits";
 import { getAllWithdrawalRequests, markCombinedWithdrawalPaid, rejectCombinedWithdrawal } from "../services/withdrawalRequests";
-import { listAllUsers, revertTodaysCompletionsForLaunchPause, resetAllAccountsForFreshStart, fixAllWelcomeBonusesTo350 } from "../services/adminUsers";
+import { listAllUsers, revertTodaysCompletionsForLaunchPause, resetAllAccountsForFreshStart, fixAllWelcomeBonusesTo350, fixAllCheckInBalancesAbove50 } from "../services/adminUsers";
 import FormInput from "../components/FormInput";
 import { ErrorBox, SuccessBox } from "../components/MessageBox";
 import AdminCreateDepositModal from "../components/AdminCreateDepositModal";
@@ -57,6 +57,8 @@ export default function AdminDepositsPage() {
   const [resetConfirmText, setResetConfirmText] = useState("");
   const [welcomeFixPreview, setWelcomeFixPreview] = useState(null);
   const [welcomeFixBusy, setWelcomeFixBusy] = useState(false);
+  const [checkInFixPreview, setCheckInFixPreview] = useState(null);
+  const [checkInFixBusy, setCheckInFixBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("pending");
   const [notes, setNotes] = useState({});
@@ -244,6 +246,40 @@ export default function AdminDepositsPage() {
     setWelcomeFixBusy(false);
   }
 
+  // ONE-TIME fix: caps every check-in balance above ₦50 down to ₦0,
+  // correcting leftover accumulation from before performCheckIn() was
+  // changed to cap instead of add each day (see services/checkins.js).
+  // Same preview-then-confirm pattern as the welcome bonus fix above.
+  async function handlePreviewCheckInFix() {
+    setCheckInFixBusy(true);
+    setErr("");
+    setOk("");
+    try {
+      const preview = await fixAllCheckInBalancesAbove50({ dryRun: true });
+      setCheckInFixPreview(preview);
+    } catch (e) {
+      console.error(e);
+      setErr("Could not load check-in balance fix preview.");
+    }
+    setCheckInFixBusy(false);
+  }
+
+  async function handleConfirmCheckInFix() {
+    if (!window.confirm(`Reset check-in balance to ₦0 for ${checkInFixPreview?.recordsToFix ?? "all affected"} user(s) currently above ₦50? This cannot be undone.`)) return;
+    setCheckInFixBusy(true);
+    setErr("");
+    setOk("");
+    try {
+      const result = await fixAllCheckInBalancesAbove50({ dryRun: false });
+      setOk(`Check-in balance fix complete — reset ${result.recordsToFix} of ${result.totalCheckinRecords} record(s) to ₦0.`);
+      setCheckInFixPreview(null);
+    } catch (e) {
+      console.error(e);
+      setErr("Could not complete the check-in balance fix. Some records may be partially updated — check Firestore directly before retrying.");
+    }
+    setCheckInFixBusy(false);
+  }
+
   let filtered = deposits.filter((d) => tab === "all" || d.status === tab);
   if (searchName.trim()) filtered = filtered.filter((d) => d.userName?.toLowerCase().includes(searchName.trim().toLowerCase()));
   if (searchEmail.trim()) filtered = filtered.filter((d) => d.userEmail?.toLowerCase().includes(searchEmail.trim().toLowerCase()));
@@ -374,7 +410,7 @@ export default function AdminDepositsPage() {
       <div style={{ marginBottom: 20, padding: 14, border: `1px solid ${C.gold}`, borderRadius: 12, background: "rgba(185,121,28,0.04)" }}>
         <div style={{ fontSize: 13, fontWeight: 800, color: C.gold, marginBottom: 4 }}>🔧 Fix: Welcome Bonus → ₦350 for Everyone</div>
         <p style={{ fontSize: 11.5, color: C.muted, marginBottom: 10, lineHeight: 1.5 }}>
-          One-time correction for the mid-launch pricing change. Forces every user's welcome bonus to a flat ₦350, regardless of what they currently have (₦200, ₦500, or anything else). Nothing else is touched.
+          One-time correction for the mid-launch pricing change. Forces every user's welcome bonus to a flat ₦350, regardless of what they currently have (₦200, ₦500, or anything else) — except anyone at ₦0, who already withdrew it and is left alone. Nothing else is touched.
         </p>
 
         {!welcomeFixPreview && (
@@ -387,6 +423,8 @@ export default function AdminDepositsPage() {
           <div>
             <div style={{ fontSize: 12.5, marginBottom: 10, lineHeight: 1.7 }}>
               <strong>{welcomeFixPreview.usersToFix}</strong> of <strong>{welcomeFixPreview.totalUsers}</strong> user(s) will be updated to ₦350.
+              <br />
+              <span style={{ color: C.dim }}>{welcomeFixPreview.usersSkippedAtZero} user(s) at ₦0 (already withdrawn) will be skipped.</span>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <button
@@ -397,6 +435,39 @@ export default function AdminDepositsPage() {
                 {welcomeFixBusy ? "Fixing…" : `Confirm — Fix ${welcomeFixPreview.usersToFix} User(s)`}
               </button>
               <button style={{ ...buttonStyle("ghost"), fontSize: 12.5 }} onClick={() => setWelcomeFixPreview(null)} disabled={welcomeFixBusy}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div style={{ marginBottom: 20, padding: 14, border: `1px solid ${C.gold}`, borderRadius: 12, background: "rgba(185,121,28,0.04)" }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: C.gold, marginBottom: 4 }}>🔧 Fix: Check-In Balance (cap leftover above ₦50 → ₦0)</div>
+        <p style={{ fontSize: 11.5, color: C.muted, marginBottom: 10, lineHeight: 1.5 }}>
+          One-time correction for leftover check-in balances from before check-in was capped at ₦50/day. Anyone currently above ₦50 (e.g. ₦100, ₦300 from multiple unwithdrawn days) is reset to ₦0. Anyone already at exactly ₦0 or ₦50 is left untouched.
+        </p>
+
+        {!checkInFixPreview && (
+          <button style={{ ...buttonStyle("gold"), fontSize: 12.5 }} onClick={handlePreviewCheckInFix} disabled={checkInFixBusy}>
+            {checkInFixBusy ? "Loading preview…" : "Preview Check-In Balance Fix"}
+          </button>
+        )}
+
+        {checkInFixPreview && (
+          <div>
+            <div style={{ fontSize: 12.5, marginBottom: 10, lineHeight: 1.7 }}>
+              <strong>{checkInFixPreview.recordsToFix}</strong> of <strong>{checkInFixPreview.totalCheckinRecords}</strong> check-in record(s) are above ₦50 and will be reset to ₦0.
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                style={{ ...buttonStyle("gold"), fontSize: 12.5, flex: 1 }}
+                onClick={handleConfirmCheckInFix}
+                disabled={checkInFixBusy || checkInFixPreview.recordsToFix === 0}
+              >
+                {checkInFixBusy ? "Fixing…" : `Confirm — Fix ${checkInFixPreview.recordsToFix} Record(s)`}
+              </button>
+              <button style={{ ...buttonStyle("ghost"), fontSize: 12.5 }} onClick={() => setCheckInFixPreview(null)} disabled={checkInFixBusy}>
                 Cancel
               </button>
             </div>

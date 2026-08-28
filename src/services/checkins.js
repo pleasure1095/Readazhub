@@ -2,6 +2,7 @@ import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import { db } from "./firebase";
 import { MIN_WITHDRAWAL, validateWithdrawalAmount } from "../utils/earnings";
 import { createNotification } from "./notifications";
+import { isLaunchPauseActive, LAUNCH_PAUSE_ENDS_AT } from "../utils/launchPause";
 
 const CHECKINS_COLLECTION = "checkins";
 // CHANGED per the site owner: was ₦100/day, dropped to ₦50/day as part
@@ -15,7 +16,12 @@ const CHECKINS_COLLECTION = "checkins";
 // paid out after this change ships, pause or no pause.
 export const CHECKIN_DAILY_REWARD = 50;
 export const CHECKIN_STREAK_TARGET = 7;
-export const CHECKIN_MAX_REWARD = CHECKIN_DAILY_REWARD * CHECKIN_STREAK_TARGET; // ₦350
+// NOTE: no longer an achievable BALANCE since performCheckIn() now caps
+// unlockedBalance at CHECKIN_DAILY_REWARD instead of accumulating it —
+// kept only because CHECKIN_STREAK_TARGET is still used for the
+// display-only streak counter/engagement messaging (see performCheckIn
+// comment). Not read anywhere else in the codebase currently.
+export const CHECKIN_MAX_REWARD = CHECKIN_DAILY_REWARD * CHECKIN_STREAK_TARGET; // ₦350 (historical only)
 
 // Uses WAT (UTC+1) as the reference timezone for "what day is it", staying
 // consistent with the withdrawal-hours convention used elsewhere in the
@@ -59,20 +65,36 @@ export async function getCheckInStatus(userId) {
 }
 
 /**
- * Records today's check-in and credits ₦100 straight to the withdrawable
- * balance immediately — no 7-day lock/hold.
+ * Records today's check-in and credits ₦50 to the withdrawable balance —
+ * capped at ₦50, not accumulated across multiple days.
  *
- * Changed from an earlier design where ₦100/day accrued into a locked
- * `pendingReward` that only unlocked as one ₦700 lump sum after 7
- * CONSECUTIVE days (forfeiting everything if a day was missed before
- * day 7). Per the site owner's explicit request, Check-In now behaves
- * like Referral Bonus and Welcome Bonus — both of which already credit
- * straight to a withdrawable balance the instant they're earned, with no
- * waiting period. The streak counter is kept for display/engagement
- * purposes only (so the app can still show "5 day streak!") — it no
- * longer gates or forfeits any money.
+ * CHANGED per the site owner's explicit correction: an earlier version
+ * of this function ADDED CHECKIN_DAILY_REWARD to unlockedBalance on
+ * every check-in, so a user who checked in daily without withdrawing
+ * would build up ₦100, ₦150, ₦300+ over time. The site owner clarified
+ * this was wrong — check-in balance should only ever be ₦0 (never
+ * checked in today, or already withdrawn) or exactly CHECKIN_DAILY_REWARD
+ * (₦50, checked in today, not yet withdrawn). It never accumulates: if
+ * a user checks in on a new day without having withdrawn yesterday's
+ * ₦50, that ₦50 simply stays at ₦50 — it is NOT paid out a second time
+ * and does NOT stack. This is a cap, not an add.
+ *
+ * The streak counter is still tracked separately for display/engagement
+ * purposes only (so the app can still show "5 day streak!") — it has
+ * never gated or forfeited any money, and this change doesn't affect
+ * that.
  */
 export async function performCheckIn(userId) {
+  // ONE-TIME LAUNCH PAUSE (see utils/launchPause.js) — daily check-in is
+  // frozen for every user until LAUNCH_PAUSE_ENDS_AT, per the site
+  // owner's explicit request. Matches the same pattern used for the
+  // reading task (services/reviews.js) and withdrawals
+  // (services/withdrawalRequests.js) during this window.
+  if (isLaunchPauseActive()) {
+    const hoursLeft = Math.ceil((LAUNCH_PAUSE_ENDS_AT - Date.now()) / (60 * 60 * 1000));
+    throw new Error(`Daily check-in is paused for launch. It resumes in about ${hoursLeft} hour${hoursLeft === 1 ? "" : "s"}.`);
+  }
+
   const status = await getCheckInStatus(userId);
   if (status.checkedInToday) return status;
 
@@ -85,7 +107,11 @@ export async function performCheckIn(userId) {
     longestStreak: Math.max(newStreak, status.longestStreak || 0),
     totalCheckIns: (status.totalCheckIns || 0) + 1,
     lastCheckInDate: today,
-    unlockedBalance: (status.unlockedBalance || 0) + CHECKIN_DAILY_REWARD,
+    // CAPPED, not accumulated — see function comment above. If the
+    // user's balance is already at or above CHECKIN_DAILY_REWARD
+    // (unwithdrawn from a previous check-in), this leaves it unchanged
+    // rather than adding another ₦50 on top.
+    unlockedBalance: Math.max(status.unlockedBalance || 0, CHECKIN_DAILY_REWARD),
     lifetimeWithdrawn: status.lifetimeWithdrawn || 0,
   };
 

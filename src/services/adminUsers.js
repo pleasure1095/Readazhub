@@ -245,23 +245,26 @@ export async function resetUserEarnings(userId, { resetCheckIn = false, resetRea
 }
 
 /**
- * ONE-TIME data fix: forces EVERY user's welcomeBonus to a flat ₦350,
+ * ONE-TIME data fix: forces every user's welcomeBonus to a flat ₦350,
  * regardless of their current value — per the site owner's explicit
  * instruction, correcting an admitted mistake where the site owner
  * changed the welcome-bonus amount mid-launch (₦500 → ₦200 → settled on
  * ₦350) and some users had already signed up and locked in the ₦200
  * value before the final ₦350 amount was decided.
  *
- * Deliberately does NOT touch welcomeLifetimeWithdrawn — if a user
- * somehow already withdrew part of their welcome bonus before this fix
- * runs, forcibly resetting welcomeBonus to ₦350 without adjusting what
- * they've already withdrawn could let them withdraw ₦350 again on top
- * of what they already took out. Left as a known edge case the site
- * owner should be aware of rather than silently "fixed" with an
- * assumption about what they'd want (see also: the withdrawable amount
- * for welcome bonus is welcomeBonus - welcomeLifetimeWithdrawn, so if
- * this edge case matters, checking welcomeLifetimeWithdrawn per user
- * before running this is worth doing).
+ * SKIPS anyone currently at welcomeBonus === 0 — confirmed explicitly by
+ * the site owner: welcomeBonus is the user's actual spendable balance
+ * (see withdrawBonusBalance above, which decrements it directly on
+ * withdrawal — it is NOT a separate "lifetime granted" figure), so ₦0
+ * means that user already withdrew their whole welcome bonus, not that
+ * they never received one. Forcing them back up to ₦350 would
+ * incorrectly hand them a bonus a second time. Only users with a
+ * NONZERO, non-₦350 value are corrected.
+ *
+ * Deliberately does NOT touch welcomeLifetimeWithdrawn — see
+ * withdrawBonusBalance above for how that field is maintained
+ * separately; this fix only touches the live spendable welcomeBonus
+ * figure for users who haven't withdrawn anything yet.
  *
  * Uses setDoc-with-merge (not updateDoc) for the same reason established
  * in resetAllAccountsForFreshStart above — see that function's writes
@@ -276,11 +279,16 @@ export async function fixAllWelcomeBonusesTo350({ dryRun = true } = {}) {
   const FIXED_WELCOME_BONUS = 350;
   const usersSnap = await getDocs(collection(db, USERS_COLLECTION));
 
-  const usersToFix = usersSnap.docs.filter((d) => (d.data().welcomeBonus || 0) !== FIXED_WELCOME_BONUS);
+  const usersToFix = usersSnap.docs.filter((d) => {
+    const current = d.data().welcomeBonus || 0;
+    return current !== 0 && current !== FIXED_WELCOME_BONUS;
+  });
+  const usersSkippedAtZero = usersSnap.docs.filter((d) => (d.data().welcomeBonus || 0) === 0).length;
 
   const summary = {
     totalUsers: usersSnap.docs.length,
     usersToFix: usersToFix.length,
+    usersSkippedAtZero,
     dryRun,
   };
 
@@ -288,6 +296,50 @@ export async function fixAllWelcomeBonusesTo350({ dryRun = true } = {}) {
 
   for (const userDoc of usersToFix) {
     await setDoc(doc(db, USERS_COLLECTION, userDoc.id), { welcomeBonus: FIXED_WELCOME_BONUS }, { merge: true });
+  }
+
+  return summary;
+}
+
+/**
+ * ONE-TIME data fix: caps every user's check-in unlockedBalance down to
+ * ₦0 if it's currently ABOVE the ₦50 daily reward — per the site
+ * owner's explicit instruction, correcting leftover balances from
+ * before performCheckIn() was changed to cap at ₦50 instead of
+ * accumulating (see that function's comment in services/checkins.js for
+ * the full context: it used to ADD ₦50/day with no cap, so a user who
+ * checked in on several days without withdrawing could have built up
+ * ₦100, ₦300, or more).
+ *
+ * Confirmed explicitly by the site owner: anyone above ₦50 is brought
+ * ALL THE WAY DOWN to ₦0 (not capped down to ₦50) — the excess is
+ * treated as forfeited, matching the same "launching afresh" logic
+ * applied to the other Fresh Start-style fixes in this file. Anyone
+ * already at exactly ₦0 or exactly ₦50 is left untouched — those are
+ * already valid values under the corrected model and don't need fixing.
+ *
+ * Does NOT touch lifetimeWithdrawn, streak counters, or lastCheckInDate
+ * — this only corrects the unlockedBalance figure itself.
+ *
+ * SAFETY: pass dryRun: true (the default) to preview the count of users
+ * that would be changed, with zero writes, before running for real.
+ */
+export async function fixAllCheckInBalancesAbove50({ dryRun = true } = {}) {
+  const CHECKIN_DAILY_REWARD = 50;
+  const checkinsSnap = await getDocs(collection(db, CHECKINS_COLLECTION));
+
+  const docsToFix = checkinsSnap.docs.filter((d) => (d.data().unlockedBalance || 0) > CHECKIN_DAILY_REWARD);
+
+  const summary = {
+    totalCheckinRecords: checkinsSnap.docs.length,
+    recordsToFix: docsToFix.length,
+    dryRun,
+  };
+
+  if (dryRun) return summary;
+
+  for (const checkinDoc of docsToFix) {
+    await setDoc(doc(db, CHECKINS_COLLECTION, checkinDoc.id), { unlockedBalance: 0 }, { merge: true });
   }
 
   return summary;

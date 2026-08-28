@@ -5,12 +5,11 @@ import {
   updateDoc,
   runTransaction,
   getDocs,
-  query,
-  where,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { createNotification } from "./notifications";
 import { MIN_WITHDRAWAL } from "../utils/earnings";
+import { isLaunchPauseActive, LAUNCH_PAUSE_ENDS_AT } from "../utils/launchPause";
 
 const WITHDRAWAL_REQUESTS_COLLECTION = "withdrawalRequests";
 const DEPOSITS_COLLECTION = "deposits";
@@ -30,54 +29,6 @@ export const WITHDRAWAL_FEE_RATE = 0.12;
 
 function genRef() {
   return "GWD-" + Math.random().toString(36).toUpperCase().slice(2, 8) + "-" + Date.now().toString(36).toUpperCase().slice(-4);
-}
-
-// Same WAT (West Africa Time, UTC+1) calendar-day boundary already used
-// for the daily reading task in services/reviews.js — kept in sync
-// deliberately so "one withdrawal per day" and "one reading task per
-// day" always reset at the same moment for a user, rather than two
-// independently-drifting day boundaries.
-function getWATDateString(timestamp = Date.now()) {
-  const watMs = timestamp + 60 * 60 * 1000;
-  const d = new Date(watMs);
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
-}
-
-/**
- * ONE WITHDRAWAL REQUEST PER WAT CALENDAR DAY, per the site owner's
- * explicit confirmation:
- * - Measured by WAT calendar day, not a rolling 24h window — resets at
- *   WAT midnight regardless of what time the last request was made.
- * - ANY request from today counts as "used" the daily slot, regardless
- *   of its current status — pending, paid, AND rejected all block a new
- *   request until the next WAT day. A rejected request does NOT free up
- *   another same-day attempt.
- *
- * Called from inside requestCombinedWithdrawal() before the transaction
- * starts, since this is a read against a different collection query
- * shape than a transaction.get() supports directly.
- *
- * Filters by requestedAt CLIENT-SIDE after a single where("userId", ...)
- * query, rather than adding a second where() clause for requestedAt —
- * matches the exact pattern services/deposits.js:getUserDeposits()
- * already uses (see its comment) specifically to avoid requiring a
- * manually-created Firestore composite index, which is an easy step to
- * miss and awkward to set up from a phone with no terminal access. A
- * single user's total request history is small enough that client-side
- * filtering has no real performance cost.
- */
-async function hasWithdrawalRequestToday(userId, now = Date.now()) {
-  const todayDateString = getWATDateString(now);
-  const watMidnightUtcMs = (() => {
-    const [y, m, d] = todayDateString.split("-").map(Number);
-    // Midnight WAT (UTC+1) expressed as its equivalent UTC instant is
-    // 23:00 UTC the previous day, i.e. Date.UTC(y, m-1, d, -1).
-    return Date.UTC(y, m - 1, d, -1, 0, 0, 0);
-  })();
-
-  const q = query(collection(db, WITHDRAWAL_REQUESTS_COLLECTION), where("userId", "==", userId));
-  const snap = await getDocs(q);
-  return snap.docs.some((d) => (d.data().requestedAt || 0) >= watMidnightUtcMs);
 }
 
 /**
@@ -144,21 +95,18 @@ export async function requestCombinedWithdrawal({
   checkInBalance,
   checkInLifetimeWithdrawn,
 }) {
-  if (!amount || amount < MIN_WITHDRAWAL) {
-    throw new Error(`Minimum withdrawal is ₦${MIN_WITHDRAWAL.toLocaleString()}.`);
+  // ONE-TIME LAUNCH PAUSE (see utils/launchPause.js) — all withdrawals
+  // blocked for every user until LAUNCH_PAUSE_ENDS_AT, per the site
+  // owner's explicit request for the Aug 26, 2026 relaunch. Checked
+  // first, before the minimum-amount check, so this specific reason is
+  // shown rather than being masked by an unrelated validation error.
+  if (isLaunchPauseActive()) {
+    const hoursLeft = Math.ceil((LAUNCH_PAUSE_ENDS_AT - Date.now()) / (60 * 60 * 1000));
+    throw new Error(`Withdrawals are paused for launch. They resume in about ${hoursLeft} hour${hoursLeft === 1 ? "" : "s"}.`);
   }
 
-  // NOTE: this check runs before the transaction below, not inside it —
-  // Firestore transactions can't run arbitrary `where` queries, only
-  // direct document reads by reference. In the extremely rare case of
-  // two near-simultaneous double-taps both passing this check before
-  // either's transaction commits, two requests could land on the same
-  // day. Matches the existing pattern in this file (the amount-vs-
-  // balance check above the transaction has the same limitation) — an
-  // admin reviewing requests would still catch a same-day duplicate
-  // manually if it ever happened.
-  if (await hasWithdrawalRequestToday(userId)) {
-    throw new Error("You've already placed a withdrawal request today. You can request again after midnight (WAT).");
+  if (!amount || amount < MIN_WITHDRAWAL) {
+    throw new Error(`Minimum withdrawal is ₦${MIN_WITHDRAWAL.toLocaleString()}.`);
   }
 
   const { total, breakdown: available } = getCombinedWithdrawableBalance({
